@@ -115,6 +115,71 @@ func TestEvaluateFileWithJPath(t *testing.T) {
 	}
 }
 
+func TestEvaluateFileWithTransitiveImports(t *testing.T) {
+	vm, err := New(WithJPath(testdataPath("lib")))
+	if err != nil {
+		t.Fatalf("New() error: %v", err)
+	}
+	defer vm.Close()
+
+	result, err := vm.EvaluateFile(testdataPath("transitive_imports.jsonnet"))
+	if err != nil {
+		t.Fatalf("EvaluateFile error: %v", err)
+	}
+	if !strings.Contains(result, `"shouted": "HELLO!"`) {
+		t.Errorf("expected shouted=HELLO!, got: %s", result)
+	}
+	if !strings.Contains(result, `"repeated": "ababab"`) {
+		t.Errorf("expected repeated=ababab, got: %s", result)
+	}
+}
+
+func TestEvaluateFileWithMultipleLibImports(t *testing.T) {
+	vm, err := New(WithJPath(testdataPath("lib")))
+	if err != nil {
+		t.Fatalf("New() error: %v", err)
+	}
+	defer vm.Close()
+
+	result, err := vm.EvaluateFile(testdataPath("multi_lib_imports.jsonnet"))
+	if err != nil {
+		t.Fatalf("EvaluateFile error: %v", err)
+	}
+	if !strings.Contains(result, `"greeting": "hello world"`) {
+		t.Errorf("expected greeting, got: %s", result)
+	}
+	if !strings.Contains(result, `"shouted": "WORLD!"`) {
+		t.Errorf("expected shouted, got: %s", result)
+	}
+	if !strings.Contains(result, `"doubled": 42`) {
+		t.Errorf("expected doubled=42, got: %s", result)
+	}
+}
+
+func TestEvaluateFileWithDiamondImports(t *testing.T) {
+	vm, err := New(WithJPath(testdataPath("lib")))
+	if err != nil {
+		t.Fatalf("New() error: %v", err)
+	}
+	defer vm.Close()
+
+	// diamond_import.jsonnet imports helper, utils, and strings directly.
+	// utils also imports strings transitively — tests shared dependency resolution.
+	result, err := vm.EvaluateFile(testdataPath("diamond_import.jsonnet"))
+	if err != nil {
+		t.Fatalf("EvaluateFile error: %v", err)
+	}
+	if !strings.Contains(result, `"greet": "hello world"`) {
+		t.Errorf("expected greet, got: %s", result)
+	}
+	if !strings.Contains(result, `"shout": "WORLD!"`) {
+		t.Errorf("expected shout, got: %s", result)
+	}
+	if !strings.Contains(result, `"direct_upper": "TEST"`) {
+		t.Errorf("expected direct_upper, got: %s", result)
+	}
+}
+
 // --- Options ---
 
 func TestWithStringOutput(t *testing.T) {

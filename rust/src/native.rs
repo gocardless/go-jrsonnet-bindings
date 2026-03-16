@@ -1,3 +1,5 @@
+#![allow(unused_assignments)] // False positive from jrsonnet_gcmodule::Trace derive on #[trace(skip)] fields
+
 use std::{
     ffi::{c_void, CStr, CString},
     os::raw::{c_char, c_int},

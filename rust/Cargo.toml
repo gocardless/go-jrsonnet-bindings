@@ -1,0 +1,23 @@
+[package]
+name = "jrsonnet-go"
+version = "0.1.0"
+edition = "2021"
+publish = false
+
+[lib]
+name = "jrsonnet_go"
+crate-type = ["staticlib"]
+
+[dependencies]
+jrsonnet-evaluator = { git = "https://github.com/CertainLach/jrsonnet.git", branch = "master" }
+jrsonnet-parser = { git = "https://github.com/CertainLach/jrsonnet.git", branch = "master" }
+jrsonnet-stdlib = { git = "https://github.com/CertainLach/jrsonnet.git", branch = "master" }
+jrsonnet-gcmodule = "0.4.1"
+jrsonnet-interner = { git = "https://github.com/CertainLach/jrsonnet.git", branch = "master" }
+serde_json = "1.0"
+
+[profile.release]
+opt-level = 3
+lto = "fat"
+codegen-units = 1
+panic = "unwind"

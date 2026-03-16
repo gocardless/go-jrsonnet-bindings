@@ -1,0 +1,19 @@
+language = "C"
+include_guard = "JRSONNET_GO_H"
+no_includes = true
+sys_includes = ["stdarg.h", "stdbool.h", "stddef.h", "stdint.h", "stdlib.h"]
+
+[export]
+include = [
+    "VM",
+    "ThreadCTX",
+    "GoResult",
+    "GoImportCallback",
+    "GoNativeCallback",
+]
+
+[export.rename]
+"GoResult" = "GoResult"
+
+[fn]
+prefix = ""

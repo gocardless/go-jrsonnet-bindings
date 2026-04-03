@@ -18,7 +18,7 @@ This package provides a Go-native API for jrsonnet via CGo. Instead of using jrs
 
 ## Prerequisites
 
-- **Go** 1.22+
+- **Go** 1.25+
 - **Rust** stable toolchain (for building the staticlib)
 - **cbindgen** (`cargo install cbindgen`) for regenerating the C header
 
@@ -46,7 +46,7 @@ import (
     "fmt"
     "log"
 
-    jrsonnet "github.com/gjonasts/go-jrsonnet-bindings"
+    jrsonnet "github.com/gocardless/go-jrsonnet-bindings"
 )
 
 func main() {

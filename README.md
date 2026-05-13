@@ -22,6 +22,12 @@ This package provides a Go-native API for jrsonnet via CGo. Instead of using jrs
 - **Rust** stable toolchain (for building the staticlib)
 - **cbindgen** (`cargo install cbindgen`) for regenerating the C header
 
+- On MacOS
+  - **x86_64-unknown-linux-gnu** is needed cross compiling
+    `brew tap messense/macos-cross-toolchains`
+    `brew install x86_64-unknown-linux-gnu`
+    `rustup target install x86_64-unknown-linux-gnu
+
 ## Building
 
 ```bash

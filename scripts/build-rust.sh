@@ -19,6 +19,7 @@ CARGO="cargo"
 
 TARGETS=(
     "aarch64-apple-darwin"
+    "aarch64-unknown-linux-gnu"
     "x86_64-unknown-linux-gnu"
     # wasm32-unknown-unknown
 )

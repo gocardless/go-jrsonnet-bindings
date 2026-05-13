@@ -16,14 +16,14 @@ use std::{
 
 use jrsonnet_evaluator::{
     apply_tla,
-    function::TlaArg,
+    tla::TlaArg,
     manifest::{JsonFormat, ManifestFormat},
     rustc_hash::FxHashMap,
     trace::{CompactFormat, PathResolver, TraceFormat},
     AsPathLike, FileImportResolver, IStr, ImportResolver, Result, State,
 };
 use jrsonnet_gcmodule::Acyclic;
-use jrsonnet_parser::SourcePath;
+use jrsonnet_ir::SourcePath;
 use jrsonnet_stdlib::ContextInitializer;
 
 // ---------------------------------------------------------------------------
@@ -186,7 +186,7 @@ pub unsafe extern "C" fn jrsonnet_go_free_string(s: *mut c_char) {
 /// Run a GC collection cycle.
 #[no_mangle]
 pub extern "C" fn jrsonnet_go_gc_collect() {
-    jrsonnet_gcmodule::collect_thread_cycles();
+    let _ = jrsonnet_gcmodule::collect_thread_cycles();
 }
 
 // ---------------------------------------------------------------------------

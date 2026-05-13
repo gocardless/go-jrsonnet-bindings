@@ -8,8 +8,11 @@ use std::{
 use jrsonnet_evaluator::{
     error::{Error, ErrorKind},
     function::builtin::{NativeCallback, NativeCallbackHandler},
-    val::{ArrValue, NumValue, StrValue},
-    IStr, ObjValue, Val,
+    val::{ArrValue, StrValue},
+    IStr,
+    NumValue,
+    ObjValue,
+    Val,
 };
 
 use crate::VM;
@@ -91,7 +94,7 @@ fn json_to_val(v: &serde_json::Value) -> Val {
         serde_json::Value::String(s) => Val::Str(StrValue::Flat(IStr::from(s.as_str()))),
         serde_json::Value::Array(arr) => {
             let vals: Vec<Val> = arr.iter().map(json_to_val).collect();
-            Val::Arr(ArrValue::eager(vals))
+            Val::Arr(ArrValue::new(vals))
         }
         serde_json::Value::Object(obj) => {
             let mut o = ObjValue::empty();

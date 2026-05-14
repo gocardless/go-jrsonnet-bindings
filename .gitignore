@@ -1,4 +1,4 @@
-/rust/target
+/target
 /lib/
 .DS_Store
 *.test

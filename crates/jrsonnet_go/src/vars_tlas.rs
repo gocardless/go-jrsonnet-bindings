@@ -3,7 +3,7 @@ use std::{
     os::raw::{c_char, c_int},
 };
 
-use jrsonnet_evaluator::{function::TlaArg, IStr};
+use jrsonnet_evaluator::{tla::TlaArg, IStr};
 
 use crate::VM;
 

@@ -1,0 +1,88 @@
+---
+name: Build
+
+"on":
+  push:
+    branches: [master]
+  pull_request:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: >-
+          Release version (used in filenames and as the release tag,
+          e.g. "1.2.3" produces tag "v1.2.3").
+        type: string
+        required: true
+
+jobs:
+  libjrsonnet_go:
+    name: Build libjrsonnet_go.a (${{ matrix.target }})
+    runs-on: ${{ matrix.os }}
+
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - target: aarch64-apple-darwin
+            os: macos-latest
+          - target: aarch64-unknown-linux-gnu
+            os: ubuntu-latest
+            apt: gcc-aarch64-linux-gnu
+          - target: x86_64-unknown-linux-gnu
+            os: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - if: matrix.apt
+        run: sudo apt-get update && sudo apt-get install -y ${{ matrix.apt }}
+
+      - uses: actions-rust-lang/setup-rust-toolchain@v1
+        with:
+          targets: ${{ matrix.target }}
+
+      - run: cargo build --release --lib --target ${{ matrix.target }}
+
+      - name: Stage artifact
+        run: |
+          mkdir -p lib/${{ matrix.target }}
+          cp -v target/${{ matrix.target }}/release/libjrsonnet_go.a \
+                lib/${{ matrix.target }}/libjrsonnet_go.a
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: libjrsonnet_go-${{ matrix.target }}
+          path: lib/${{ matrix.target }}/libjrsonnet_go.a
+
+  release:
+    name: Release
+    if: github.event_name == 'workflow_dispatch'
+    needs: libjrsonnet_go
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: dist
+
+      - name: Assemble release tarball
+        env:
+          VERSION: ${{ inputs.version }}
+        run: |
+          mkdir -p stage
+          for dir in dist/libjrsonnet_go-*; do
+            target="${dir#dist/libjrsonnet_go-}"
+            mkdir -p "stage/lib/${target}"
+            cp -v "${dir}/libjrsonnet_go.a" "stage/lib/${target}/"
+          done
+          tar -czvf "libjrsonnet_go-${VERSION}.tar.gz" -C stage lib
+
+      - uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v${{ inputs.version }}
+          name: v${{ inputs.version }}
+          files: libjrsonnet_go-${{ inputs.version }}.tar.gz
+          generate_release_notes: true
+          fail_on_unmatched_files: true

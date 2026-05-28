@@ -4,10 +4,13 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ROOT_DIR="$(cd "${SCRIPT_DIR}/.." && pwd)"
 
-# Cross Compiler Setup
-# brew tap messense/macos-cross-toolchains
-# brew install x86_64-unknown-gnu x86_64-linux-gnu-binutils
+# Cross compiler setup (macOS host -> Linux targets):
+#   brew tap messense/macos-cross-toolchains
+#   brew install x86_64-unknown-linux-gnu aarch64-unknown-linux-gnu
 export PATH="${PATH}:$(brew --prefix x86_64-unknown-linux-gnu)/bin"
+export PATH="${PATH}:$(brew --prefix aarch64-unknown-linux-gnu)/bin"
+export CARGO_TARGET_X86_64_UNKNOWN_LINUX_GNU_LINKER="x86_64-unknown-linux-gnu-gcc"
+export CARGO_TARGET_AARCH64_UNKNOWN_LINUX_GNU_LINKER="aarch64-unknown-linux-gnu-gcc"
 
 CARGO="cargo"
 # # Use rustup toolchain if available, otherwise default cargo

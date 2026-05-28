@@ -22,18 +22,26 @@ This package provides a Go-native API for jrsonnet via CGo. Instead of using jrs
 - **Rust** stable toolchain (for building the staticlib)
 - **cbindgen** (`cargo install cbindgen`) for regenerating the C header
 
-- On MacOS
-  - **aarch64-apple-darwin** is the native toolchain
-  - **x86_64-unknown-linux-gnu** is needed for cross compiling for servers
-  - **aarch64-unknown-linux-gnu** is needed for cross compiling to docker-for-mac
-    `brew tap messense/macos-cross-toolchains`
-    `brew install x86_64-unknown-linux-gnu aarch64-unknown-linux-gnu`
-    `rustup target install x86_64-unknown-linux-gnu aarch64-unknown-linux-gnu`
+### Build host
+
+The build script (`scripts/build-rust.sh`) unconditionally builds static libraries for all supported targets:
+
+- `aarch64-apple-darwin`
+- `aarch64-unknown-linux-gnu`
+- `x86_64-unknown-linux-gnu`
+
+It is currently macOS-only: the script relies on Homebrew-installed cross-toolchains and will not run on Linux as-is. On macOS:
+
+```bash
+brew tap messense/macos-cross-toolchains
+brew install x86_64-unknown-linux-gnu aarch64-unknown-linux-gnu
+rustup target install aarch64-apple-darwin x86_64-unknown-linux-gnu aarch64-unknown-linux-gnu
+```
 
 ## Building
 
 ```bash
-# Build the Rust staticlib for your platform
+# Build the Rust staticlibs for all supported targets
 make rust
 
 # Regenerate the C header (only needed after Rust API changes)
@@ -43,7 +51,7 @@ make header
 make test
 ```
 
-The build script auto-detects your platform (darwin/linux, arm64/amd64) and places the staticlib in `lib/<platform>/`.
+Static libraries are placed in `lib/<rust-target-triple>/libjrsonnet_go.a`. The correct one is selected at link time via cgo `LDFLAGS` per `GOOS`/`GOARCH`.
 
 ## Usage
 
@@ -180,20 +188,26 @@ result, _ := vm.EvaluateSnippet("test.jsonnet", `function(env, port) {
 
 ## Thread Safety
 
-The `VM` is safe for concurrent use from multiple goroutines. Calls are serialized by an internal mutex. Each call locks the current OS thread, restores the Rust thread-local storage (GC state, interner), executes the operation, then saves the TLS state back.
+A `VM` is safe to share across goroutines: calls are serialised internally and run in FIFO order.
+
+Things to be aware of:
+
+- Each `VM` owns one dedicated OS thread for its entire lifetime, so prefer reusing a long-lived VM over creating a new one per request.
+- Only one evaluation runs at a time per VM. For parallelism, create multiple VMs.
+- `Close()` waits for any in-flight call to finish before tearing the VM down.
 
 ## Architecture
 
 ```
 Go (CGo)  ──>  C ABI  ──>  Rust staticlib  ──>  jrsonnet-evaluator
                                 │
-              ┌─────────────────┴──────────────────┐
-              │  Custom Rust FFI layer (rust/src/)  │
-              │  - VM lifecycle + GC                │
-              │  - Thread context save/restore      │
-              │  - GoResult error codes             │
-              │  - JSON-based callback marshalling   │
-              └────────────────────────────────────┘
+              ┌─────────────────┴────────────────────────┐
+              │  Custom Rust FFI layer                   │
+              │  (crates/jrsonnet_go/src/)               │
+              │  - VM lifecycle + GC                     │
+              │  - GoResult error codes                  │
+              │  - JSON-based callback marshalling       │
+              └──────────────────────────────────────────┘
 ```
 
 Callbacks (import and native functions) flow in reverse: Rust calls a C function pointer, which bridges to a Go export function, which looks up the registered Go callback via `cgo.Handle`.

@@ -9,9 +9,9 @@ name = "jrsonnet_go"
 crate-type = ["staticlib"]
 
 [dependencies]
-jrsonnet-evaluator = { git = "https://github.com/CertainLach/jrsonnet.git", rev = "760c073619bc732627e7729f2ba91117b67b743a" }
-jrsonnet-ir = { git = "https://github.com/CertainLach/jrsonnet.git", rev = "760c073619bc732627e7729f2ba91117b67b743a" }
-jrsonnet-stdlib = { git = "https://github.com/CertainLach/jrsonnet.git", rev = "760c073619bc732627e7729f2ba91117b67b743a" }
+jrsonnet-evaluator = { git = "https://github.com/CertainLach/jrsonnet.git", rev = "ca7fbc731c390d808c83149a0925a20213e66aea" }
+jrsonnet-ir = { git = "https://github.com/CertainLach/jrsonnet.git", rev = "ca7fbc731c390d808c83149a0925a20213e66aea" }
+jrsonnet-stdlib = { git = "https://github.com/CertainLach/jrsonnet.git", rev = "ca7fbc731c390d808c83149a0925a20213e66aea" }
 jrsonnet-gcmodule = "0.5.0"
-jrsonnet-interner = { git = "https://github.com/CertainLach/jrsonnet.git", rev = "760c073619bc732627e7729f2ba91117b67b743a" }
+jrsonnet-interner = { git = "https://github.com/CertainLach/jrsonnet.git", rev = "ca7fbc731c390d808c83149a0925a20213e66aea" }
 serde_json = "1.0"

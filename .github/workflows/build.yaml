@@ -4,15 +4,9 @@ name: Build
 "on":
   push:
     branches: [master]
+    tags: [v*]
   pull_request:
   workflow_dispatch:
-    inputs:
-      version:
-        description: >-
-          Release version (used in filenames and as the release tag,
-          e.g. "1.2.3" produces tag "v1.2.3").
-        type: string
-        required: true
 
 jobs:
   libjrsonnet_go:
@@ -54,7 +48,7 @@ jobs:
 
   release:
     name: Release
-    if: github.event_name == 'workflow_dispatch'
+    if: startsWith(github.ref, 'refs/tags/v')
     needs: libjrsonnet_go
     runs-on: ubuntu-latest
     permissions:
@@ -65,22 +59,26 @@ jobs:
         with:
           path: dist
 
-      - name: Assemble release tarball
+      - name: Assemble release tarball + checksums
         env:
-          VERSION: ${{ inputs.version }}
+          VERSION: ${{ github.ref_name }}
         run: |
-          mkdir -p stage
+          VERSION="${REF_NAME#v}"
+          mkdir -p out
           for dir in dist/libjrsonnet_go-*; do
             target="${dir#dist/libjrsonnet_go-}"
-            mkdir -p "stage/lib/${target}"
-            cp -v "${dir}/libjrsonnet_go.a" "stage/lib/${target}/"
+            staged="stage/${target}/lib/${target}"
+            mkdir -p "$staged"
+            cp -v "${dir}/libjrsonnet_go.a" "$staged/"
+            tar -czvf "out/libjrsonnet_go-${VERSION}-${target}.tar.gz" \
+                -C "stage/${target}" lib
           done
-          tar -czvf "libjrsonnet_go-${VERSION}.tar.gz" -C stage lib
+          ( cd out && sha256sum *.tar.gz > SHA256SUMS )
 
       - uses: softprops/action-gh-release@v2
         with:
-          tag_name: v${{ inputs.version }}
-          name: v${{ inputs.version }}
-          files: libjrsonnet_go-${{ inputs.version }}.tar.gz
+          files: |
+            out/libjrsonnet_go-*-*.tar.gz
+            out/SHA256SUMS
           generate_release_notes: true
           fail_on_unmatched_files: true

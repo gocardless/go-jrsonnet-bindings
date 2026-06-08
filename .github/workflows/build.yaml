@@ -61,26 +61,40 @@ jobs:
       contents: write
 
     steps:
+      - name: Normalize and validate version
+        env:
+          RAW_VERSION: ${{ inputs.version }}
+        run: |
+          VERSION="${RAW_VERSION#v}" # tolerate a typed leading v
+          if [[ ! "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+([.-].+)?$ ]]; then
+            echo "::error::invalid version '${RAW_VERSION}' (want e.g. 1.2.3)"
+            exit 1
+          fi
+          echo "VERSION=${VERSION}" >> "$GITHUB_ENV"
+
       - uses: actions/download-artifact@v4
         with:
           path: dist
 
       - name: Assemble release tarball
-        env:
-          VERSION: ${{ inputs.version }}
         run: |
-          mkdir -p stage
+          mkdir -p out
           for dir in dist/libjrsonnet_go-*; do
             target="${dir#dist/libjrsonnet_go-}"
-            mkdir -p "stage/lib/${target}"
-            cp -v "${dir}/libjrsonnet_go.a" "stage/lib/${target}/"
+            staged="stage/${target}/lib/${target}"
+            mkdir -p "${staged}"
+            cp -v "${dir}/libjrsonnet_go.a" "${staged}/"
+            tar -czvf "out/libjrsonnet_go-${VERSION}-${target}.tar.gz" \
+                -C "stage/${target}" lib
           done
-          tar -czvf "libjrsonnet_go-${VERSION}.tar.gz" -C stage lib
+          ( cd out && sha256sum *.tar.gz > SHA256SUMS )
 
       - uses: softprops/action-gh-release@v2
         with:
-          tag_name: v${{ inputs.version }}
-          name: v${{ inputs.version }}
-          files: libjrsonnet_go-${{ inputs.version }}.tar.gz
+          tag_name: v${{ env.VERSION }}
+          name: v${{ env.VERSION }}
+          files: |
+            out/libjrsonnet_go-*-*.tar.gz
+            out/SHA256SUMS
           generate_release_notes: true
           fail_on_unmatched_files: true

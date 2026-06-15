@@ -18,6 +18,10 @@ jobs:
   libjrsonnet_go:
     name: Build libjrsonnet_go.a (${{ matrix.target }})
     runs-on: ${{ matrix.os }}
+    # Every target is built natively (runner arch + container libc match the
+    # target triple), so no cross-toolchains are required. musl targets build
+    # inside Alpine, where the system gcc is musl-gcc.
+    container: ${{ matrix.container }}
 
     strategy:
       fail-fast: false
@@ -25,19 +29,27 @@ jobs:
         include:
           - target: aarch64-apple-darwin
             os: macos-latest
-          - target: aarch64-unknown-linux-gnu
-            os: ubuntu-latest
-            apt: gcc-aarch64-linux-gnu
           - target: x86_64-unknown-linux-gnu
             os: ubuntu-latest
+          - target: aarch64-unknown-linux-gnu
+            os: ubuntu-24.04-arm
+          - target: x86_64-unknown-linux-musl
+            os: ubuntu-latest
+            container: rust:alpine
+          - target: aarch64-unknown-linux-musl
+            os: ubuntu-24.04-arm
+            container: rust:alpine
 
     steps:
       - uses: actions/checkout@v4
 
-      - if: matrix.apt
-        run: sudo apt-get update && sudo apt-get install -y ${{ matrix.apt }}
+      # Alpine images ship Rust already; add the C toolchain psm/stacker's build
+      # scripts need (gcc = musl-gcc here) plus git for cargo's git dependencies.
+      - if: matrix.container
+        run: apk add --no-cache gcc musl-dev git
 
-      - uses: actions-rust-lang/setup-rust-toolchain@v1
+      - if: ${{ !matrix.container }}
+        uses: actions-rust-lang/setup-rust-toolchain@v1
 
       - run: cargo build --release --lib --target ${{ matrix.target }}
 

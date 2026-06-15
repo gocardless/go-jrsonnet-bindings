@@ -20,7 +20,7 @@ This package provides a Go-native API for jrsonnet via CGo. Instead of using jrs
 
 - **Go** 1.25+
 - **Rust** stable toolchain (for building the staticlib)
-- **cbindgen** (`cargo install cbindgen`) for regenerating the C header
+- **cbindgen** (`cargo install cbindgen`) — only needed to regenerate the C header after changing the Rust FFI API; not required for normal builds or running tests
 
 ### Build host
 
@@ -28,14 +28,22 @@ The build script (`scripts/build-rust.sh`) unconditionally builds static librari
 
 - `aarch64-apple-darwin`
 - `aarch64-unknown-linux-gnu`
+- `aarch64-unknown-linux-musl`
 - `x86_64-unknown-linux-gnu`
+- `x86_64-unknown-linux-musl`
 
 It is currently macOS-only: the script relies on Homebrew-installed cross-toolchains and will not run on Linux as-is. On macOS:
 
 ```bash
 brew tap messense/macos-cross-toolchains
 brew install x86_64-unknown-linux-gnu aarch64-unknown-linux-gnu
-rustup target install aarch64-apple-darwin x86_64-unknown-linux-gnu aarch64-unknown-linux-gnu
+brew install x86_64-unknown-linux-musl aarch64-unknown-linux-musl
+rustup target install \
+  aarch64-apple-darwin \
+  x86_64-unknown-linux-gnu \
+  aarch64-unknown-linux-gnu \
+  x86_64-unknown-linux-musl \
+  aarch64-unknown-linux-musl
 ```
 
 ## Building
@@ -51,7 +59,45 @@ make header
 make test
 ```
 
-Static libraries are placed in `lib/<rust-target-triple>/libjrsonnet_go.a`. The correct one is selected at link time via cgo `LDFLAGS` per `GOOS`/`GOARCH`.
+Static libraries are placed in `lib/<rust-target-triple>/libjrsonnet_go.a`, one per
+target triple:
+
+| GOOS | GOARCH | libc | Target triple |
+|------|--------|------|------------------------------|
+| `darwin` | `arm64` | — | `aarch64-apple-darwin` |
+| `linux` | `arm64` | glibc | `aarch64-unknown-linux-gnu` |
+| `linux` | `amd64` | glibc | `x86_64-unknown-linux-gnu` |
+| `linux` | `arm64` | musl | `aarch64-unknown-linux-musl` |
+| `linux` | `amd64` | musl | `x86_64-unknown-linux-musl` |
+
+## Distribution
+
+**The static libraries are not tracked in git** (`lib/` is gitignored). They are
+built in CI and published as release tarballs — one per target triple — attached to
+each GitHub release (see `.github/workflows/build.yaml`). The Go module itself ships
+only source; it contains no `.a` files.
+
+Because of this, the cgo `-L${SRCDIR}/lib/<triple>` search paths baked into
+`jrsonnet.go` are empty for downstream consumers. They resolve only when building
+this repo directly (e.g. `make test`, after `make rust` populates `lib/`). A consumer
+**must fetch the matching library before building** and point the linker at it.
+
+## Consuming this library
+
+1. Fetch the release tarball for your target triple and extract it so that
+   `<dir>/libjrsonnet_go.a` exists. The triple is chosen by your build platform and
+   libc — glibc for ordinary Linux/macOS builds, musl for Alpine/`scratch` images.
+2. Build with cgo enabled, pointing `CGO_LDFLAGS` at that directory:
+
+```bash
+CGO_ENABLED=1 CGO_LDFLAGS="-L/path/to/lib/<triple>" go build ./...
+```
+
+There is **no build tag**: the linker resolves `-ljrsonnet_go` from the directory you
+supply via `CGO_LDFLAGS`, so glibc-vs-musl selection is determined entirely by which
+tarball you fetch. For a worked example — fetching glibc libs for native builds and
+staging musl libs inside an Alpine container build — see the consumer Makefile and
+`Dockerfile.alpine-test` in the `utopia` repository.
 
 ## Usage
 
@@ -150,6 +196,8 @@ result, _ := vm.EvaluateSnippet("test.jsonnet", `function(env, port) {
 |---|---|
 | `EvaluateSnippet(filename, snippet string) (string, error)` | Evaluate a Jsonnet code string |
 | `EvaluateFile(filename string) (string, error)` | Evaluate a Jsonnet file |
+
+> **Note:** `EvaluateSnippetMulti`, `EvaluateFileMulti`, `EvaluateSnippetStream`, and `EvaluateFileStream` are defined but not yet implemented — they return `ErrNotImplemented`.
 
 ### Options (passed to `New`)
 

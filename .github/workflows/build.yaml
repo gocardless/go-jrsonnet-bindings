@@ -18,10 +18,10 @@ jobs:
   libjrsonnet_go:
     name: Build libjrsonnet_go.a (${{ matrix.target }})
     runs-on: ${{ matrix.os }}
-    # Every target is built natively (runner arch + container libc match the
-    # target triple), so no cross-toolchains are required. musl targets build
-    # inside Alpine, where the system gcc is musl-gcc.
-    container: ${{ matrix.container }}
+    # Each target builds on a runner of its own architecture, so nothing is
+    # cross-compiled across arches. musl targets build on the matching-arch
+    # (glibc) runner using musl-gcc — no Alpine container, which avoids the
+    # "JS Actions in Alpine are x64-only" limitation on arm64 runners.
 
     strategy:
       fail-fast: false
@@ -35,21 +35,24 @@ jobs:
             os: ubuntu-24.04-arm
           - target: x86_64-unknown-linux-musl
             os: ubuntu-latest
-            container: rust:alpine
+            musl: true
           - target: aarch64-unknown-linux-musl
             os: ubuntu-24.04-arm
-            container: rust:alpine
+            musl: true
 
     steps:
       - uses: actions/checkout@v4
 
-      # Alpine images ship Rust already; add the C toolchain psm/stacker's build
-      # scripts need (gcc = musl-gcc here) plus git for cargo's git dependencies.
-      - if: matrix.container
-        run: apk add --no-cache gcc musl-dev git
+      - uses: actions-rust-lang/setup-rust-toolchain@v1
+        with:
+          target: ${{ matrix.target }}
 
-      - if: ${{ !matrix.container }}
-        uses: actions-rust-lang/setup-rust-toolchain@v1
+      # musl-gcc targets the host arch; the cc-crate build scripts (stacker/psm)
+      # pick it up via CC to assemble against musl rather than glibc.
+      - if: matrix.musl
+        run: |
+          sudo apt-get update && sudo apt-get install -y musl-tools
+          echo "CC=musl-gcc" >> "$GITHUB_ENV"
 
       - run: cargo build --release --lib --target ${{ matrix.target }}
 

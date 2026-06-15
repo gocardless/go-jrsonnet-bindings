@@ -41,7 +41,7 @@ jobs:
             musl: true
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       - uses: actions-rust-lang/setup-rust-toolchain@v1
         with:
@@ -62,7 +62,7 @@ jobs:
           cp -v target/${{ matrix.target }}/release/libjrsonnet_go.a \
                 lib/${{ matrix.target }}/libjrsonnet_go.a
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: libjrsonnet_go-${{ matrix.target }}
           path: lib/${{ matrix.target }}/libjrsonnet_go.a
@@ -87,7 +87,7 @@ jobs:
           fi
           echo "VERSION=${VERSION}" >> "$GITHUB_ENV"
 
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v8
         with:
           path: dist
 
@@ -104,7 +104,7 @@ jobs:
           done
           ( cd out && sha256sum *.tar.gz > SHA256SUMS )
 
-      - uses: softprops/action-gh-release@v2
+      - uses: softprops/action-gh-release@v3
         with:
           tag_name: v${{ env.VERSION }}
           name: v${{ env.VERSION }}

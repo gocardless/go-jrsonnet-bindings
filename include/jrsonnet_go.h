@@ -153,6 +153,12 @@ void jrsonnet_go_native_callback(const struct VM *vm,
  void jrsonnet_go_string_output(struct VM *vm, unsigned int flag);
 
 /**
+ * Set trailing-newline mode. When enabled (flag=1), a newline is appended to
+ * evaluation output. Defaults to 1 (enabled).
+ */
+ void jrsonnet_go_trailing_newline(struct VM *vm, unsigned int flag);
+
+/**
  * Add a library search path (jpath).
  *
  * # Safety

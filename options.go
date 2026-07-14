@@ -47,6 +47,19 @@ func WithStringOutput(enabled bool) Option {
 	})
 }
 
+// WithTrailingNewline sets whether evaluation output should have a trailing
+// newline appended. Defaults to true, matching go-jsonnet and upstream jrsonnet.
+func WithTrailingNewline(enabled bool) Option {
+	return optionFunc(func(vm *VM) error {
+		flag := C.uint(0)
+		if enabled {
+			flag = 1
+		}
+		C.jrsonnet_go_trailing_newline(vm.vm, flag)
+		return nil
+	})
+}
+
 // WithJPath adds library search paths for import resolution.
 func WithJPath(paths ...string) Option {
 	return optionFunc(func(vm *VM) error {

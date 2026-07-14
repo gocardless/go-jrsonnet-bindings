@@ -193,10 +193,60 @@ func TestWithStringOutput(t *testing.T) {
 	if err != nil {
 		t.Fatalf("EvaluateSnippet error: %v", err)
 	}
-	// With string output, the result should be the raw string, not JSON-quoted
-	if result != "hello world" {
-		t.Errorf("expected 'hello world', got: %q", result)
+	// With string output and default trailing newline, result is raw string + "\n"
+	if result != "hello world\n" {
+		t.Errorf("expected 'hello world\\n', got: %q", result)
 	}
+}
+
+func TestWithTrailingNewline(t *testing.T) {
+	t.Run("enabled appends trailing newline (default)", func(t *testing.T) {
+		vm, err := New()
+		if err != nil {
+			t.Fatalf("New() error: %v", err)
+		}
+		defer vm.Close()
+
+		result, err := vm.EvaluateSnippet("test.jsonnet", `"hello"`)
+		if err != nil {
+			t.Fatalf("EvaluateSnippet error: %v", err)
+		}
+		if result != "\"hello\"\n" {
+			t.Errorf("expected '\"hello\"\\n', got: %q", result)
+		}
+	})
+
+	t.Run("false omits trailing newline", func(t *testing.T) {
+		vm, err := New(WithTrailingNewline(false))
+		if err != nil {
+			t.Fatalf("New() error: %v", err)
+		}
+		defer vm.Close()
+
+		result, err := vm.EvaluateSnippet("test.jsonnet", `"hello"`)
+		if err != nil {
+			t.Fatalf("EvaluateSnippet error: %v", err)
+		}
+		if result != "\"hello\"" {
+			t.Errorf("expected '\"hello\"' without newline, got: %q", result)
+		}
+	})
+
+	t.Run("false with EvaluateFile omits trailing newline", func(t *testing.T) {
+		vm, err := New(WithTrailingNewline(false))
+		if err != nil {
+			t.Fatalf("New() error: %v", err)
+		}
+		defer vm.Close()
+
+		result, err := vm.EvaluateFile(testdataPath("simple.jsonnet"))
+		if err != nil {
+			t.Fatalf("EvaluateFile error: %v", err)
+		}
+		if strings.HasSuffix(result, "\n") {
+			t.Errorf("expected no trailing newline, got: %q", result)
+		}
+	})
 }
 
 func TestWithMaxStack(t *testing.T) {

@@ -109,6 +109,7 @@ pub struct VM {
     pub(crate) manifest_format: Box<dyn ManifestFormat>,
     pub(crate) trace_format: Box<dyn TraceFormat>,
     pub(crate) tla_args: FxHashMap<IStr, TlaArg>,
+    pub(crate) trailing_newline: bool,
 }
 
 impl VM {
@@ -156,6 +157,7 @@ pub extern "C" fn jrsonnet_go_vm_make() -> *mut VM {
         manifest_format: Box::new(JsonFormat::default()),
         trace_format: Box::new(CompactFormat::default()),
         tla_args: FxHashMap::default(),
+        trailing_newline: true,
     }))
 }
 
@@ -218,6 +220,7 @@ pub unsafe extern "C" fn jrsonnet_go_evaluate_snippet(
             .evaluate_snippet(filename, snippet)
             .and_then(|val| apply_tla(&vm.tla_args, val))
             .and_then(|val| val.manifest(&*vm.manifest_format))
+            .map(|s| append_newline(s, vm.trailing_newline))
     }));
 
     match result {
@@ -256,6 +259,7 @@ pub unsafe extern "C" fn jrsonnet_go_evaluate_file(
             .import(path)
             .and_then(|val| apply_tla(&vm.tla_args, val))
             .and_then(|val| val.manifest(&*vm.manifest_format))
+            .map(|s| append_newline(s, vm.trailing_newline))
     }));
 
     match result {
@@ -270,6 +274,13 @@ pub unsafe extern "C" fn jrsonnet_go_evaluate_file(
             GoResult::panic(msg)
         }
     }
+}
+
+fn append_newline(mut s: String, enabled: bool) -> String {
+    if enabled {
+        s.push('\n');
+    }
+    s
 }
 
 fn panic_message(panic: &Box<dyn Any + Send>) -> String {

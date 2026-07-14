@@ -36,6 +36,13 @@ pub extern "C" fn jrsonnet_go_string_output(vm: &mut VM, flag: c_uint) {
     };
 }
 
+/// Set trailing-newline mode. When enabled (flag=1), a newline is appended to
+/// evaluation output. Defaults to 1 (enabled).
+#[no_mangle]
+pub extern "C" fn jrsonnet_go_trailing_newline(vm: &mut VM, flag: c_uint) {
+    vm.trailing_newline = flag != 0;
+}
+
 /// Add a library search path (jpath).
 ///
 /// # Safety

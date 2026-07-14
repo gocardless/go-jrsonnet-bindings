@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"path/filepath"
 	"runtime"
+	"slices"
 	"strings"
 	"sync"
 	"testing"
@@ -731,18 +732,6 @@ func TestEvaluateSnippetMultiEmptyFieldName(t *testing.T) {
 
 // --- EvaluateSnippetStream / EvaluateFileStream ---
 
-func equalSlice(a, b []string) bool {
-	if len(a) != len(b) {
-		return false
-	}
-	for i := range a {
-		if a[i] != b[i] {
-			return false
-		}
-	}
-	return true
-}
-
 func TestEvaluateSnippetStreamOrder(t *testing.T) {
 	vm, err := New()
 	if err != nil {
@@ -755,7 +744,7 @@ func TestEvaluateSnippetStreamOrder(t *testing.T) {
 		t.Fatalf("EvaluateSnippetStream error: %v", err)
 	}
 	// Order must be preserved (unlike multi's map).
-	if want := []string{"3\n", "1\n", "2\n"}; !equalSlice(out, want) {
+	if want := []string{"3\n", "1\n", "2\n"}; !slices.Equal(out, want) {
 		t.Errorf("stream = %q, want %q", out, want)
 	}
 }
@@ -771,7 +760,7 @@ func TestEvaluateFileStream(t *testing.T) {
 	if err != nil {
 		t.Fatalf("EvaluateFileStream error: %v", err)
 	}
-	if want := []string{"3\n", "1\n", "2\n"}; !equalSlice(out, want) {
+	if want := []string{"3\n", "1\n", "2\n"}; !slices.Equal(out, want) {
 		t.Errorf("stream = %q, want %q", out, want)
 	}
 }
@@ -804,7 +793,7 @@ func TestEvaluateSnippetStreamStringOutput(t *testing.T) {
 	if err != nil {
 		t.Fatalf("EvaluateSnippetStream error: %v", err)
 	}
-	if want := []string{"hello\n", "world\n"}; !equalSlice(out, want) {
+	if want := []string{"hello\n", "world\n"}; !slices.Equal(out, want) {
 		t.Errorf("stream = %q, want %q", out, want)
 	}
 }
@@ -820,7 +809,7 @@ func TestEvaluateSnippetStreamNoTrailingNewline(t *testing.T) {
 	if err != nil {
 		t.Fatalf("EvaluateSnippetStream error: %v", err)
 	}
-	if want := []string{"{\n    \"x\": 1\n}", "{\n    \"y\": 2\n}"}; !equalSlice(out, want) {
+	if want := []string{"{\n    \"x\": 1\n}", "{\n    \"y\": 2\n}"}; !slices.Equal(out, want) {
 		t.Errorf("stream = %q, want %q", out, want)
 	}
 }
@@ -837,7 +826,7 @@ func TestEvaluateSnippetStreamSpecialChars(t *testing.T) {
 	if err != nil {
 		t.Fatalf("EvaluateSnippetStream error: %v", err)
 	}
-	if want := []string{"line1\nline2\"quoted\"\n", "second\n"}; !equalSlice(out, want) {
+	if want := []string{"line1\nline2\"quoted\"\n", "second\n"}; !slices.Equal(out, want) {
 		t.Errorf("stream = %q, want %q", out, want)
 	}
 }

@@ -283,27 +283,36 @@ fn append_newline(mut s: String, enabled: bool) -> String {
 }
 
 // ---------------------------------------------------------------------------
-// Multi-file evaluation
+// Multi-file and stream evaluation
 // ---------------------------------------------------------------------------
 //
 // Transport format
 // ----------------
-// Multi-file evaluation produces a set of (field name, manifested output)
-// pairs. The success payload matches jrsonnet's own libjsonnet binding: a
-// NUL-separated body `key\0value\0key\0value\0\0` (each value already carries
-// its trailing newline). A single leading little-endian `u64` total length is
-// prepended purely as transport framing:
+// Both multi-file and stream evaluation produce a list of manifested tokens.
+// The success payload matches jrsonnet's own libjsonnet binding: a
+// NUL-separated body of tokens terminated by an extra empty token. A single
+// leading little-endian `u64` total length is prepended purely as transport
+// framing:
 //
-//   [u64 total][key\0value\0...\0\0]      total = length of the whole buffer
+//   [u64 total][token\0token\0...\0\0]    total = length of the whole buffer
+//
+// Multi feeds flattened (field name, value) pairs (`k\0v\0k\0v\0...\0\0`);
+// stream feeds one manifested doc per element (`doc\0doc\0...\0\0`), preserving
+// array order. Each value already carries its per-element trailing newline.
 //
 // The length prefix is needed because `GoResult` carries no length field and
 // the body contains embedded NUL separators, so it can't be NUL-terminated /
 // `strlen`'d. Go reads the leading `total` to size a single copy, splits the
-// body on NUL in pure Go, and frees via `jrsonnet_go_free_multi` (which needs
+// body on NUL in pure Go, and frees via `jrsonnet_go_free_buffer` (which needs
 // the length for the same reason).
 //
-// Known, accepted limitation (shared with upstream): field names or values
-// containing a literal `\u0000` byte are not representable.
+// Known, accepted limitation (shared with upstream): tokens containing a
+// literal `\u0000` byte are not representable. For stream, the `\0\0`
+// terminator also means an empty trailing document is indistinguishable from
+// the end marker, so `[]` and `[""]` decode identically. This is only
+// reachable via `WithStringOutput` on a stream (non-JSON, nonsensical) and is
+// shared with upstream jrsonnet's own stream binding; we deliberately do not
+// engineer around it (no per-token length framing).
 //
 // The `GoResult` error/panic convention is unchanged: error (code 1) and panic
 // (code 2) payloads remain NUL-terminated C strings freed with
@@ -344,16 +353,39 @@ fn manifest_multi(vm: &VM, val: Val) -> Result<Vec<(IStr, String)>> {
     Ok(out)
 }
 
-/// Serialize multi-file pairs into the NUL-separated transport buffer with a
-/// leading `u64` total-length prefix. Returns a pointer to a heap buffer that
-/// must be freed with `jrsonnet_go_free_multi`.
-fn multi_to_buffer(pairs: Vec<(IStr, String)>) -> *mut c_char {
+/// Manifest a value in "stream" mode. The top-level value must be an array;
+/// each element is manifested independently with the VM's manifest format,
+/// preserving order, and gets the per-element trailing newline applied here
+/// (matching go-jsonnet's `manifestAndSerializeYAMLStream`).
+fn manifest_stream(vm: &VM, val: Val) -> Result<Vec<String>> {
+    let Val::Arr(arr) = val else {
+        return Err(jrsonnet_evaluator::error::ErrorKind::RuntimeError(
+            format!(
+                "stream mode: top-level value must be an array, got {}",
+                val.value_type()
+            )
+            .into(),
+        )
+        .into());
+    };
+
+    let mut out = Vec::new();
+    for item in arr.iter() {
+        let manifested = item?.manifest(&*vm.manifest_format)?;
+        out.push(append_newline(manifested, vm.trailing_newline));
+    }
+    Ok(out)
+}
+
+/// Serialize a list of tokens into the NUL-separated transport buffer with a
+/// leading `u64` total-length prefix. Multi feeds flattened key/value pairs;
+/// stream feeds docs. Returns a pointer to a heap buffer that must be freed
+/// with `jrsonnet_go_free_buffer`.
+fn tokens_to_buffer<'a>(tokens: impl Iterator<Item = &'a [u8]>) -> *mut c_char {
     let mut out: Vec<u8> = Vec::new();
     out.extend_from_slice(&[0u8; 8]); // placeholder for the total-length prefix
-    for (k, v) in &pairs {
-        out.extend_from_slice(k.as_bytes());
-        out.push(0);
-        out.extend_from_slice(v.as_bytes());
+    for token in tokens {
+        out.extend_from_slice(token);
         out.push(0);
     }
     out.push(0); // terminating empty token: `...\0\0`
@@ -362,6 +394,21 @@ fn multi_to_buffer(pairs: Vec<(IStr, String)>) -> *mut c_char {
     // into_boxed_slice() shrinks capacity to length so the pointer/length pair
     // handed to Go is enough to reconstruct and free the allocation exactly.
     Box::into_raw(out.into_boxed_slice()) as *mut c_char
+}
+
+/// Serialize multi-file pairs into the shared transport buffer, flattening each
+/// pair into consecutive `key`, `value` tokens.
+fn multi_to_buffer(pairs: Vec<(IStr, String)>) -> *mut c_char {
+    tokens_to_buffer(
+        pairs
+            .iter()
+            .flat_map(|(k, v)| [k.as_bytes(), v.as_bytes()]),
+    )
+}
+
+/// Serialize stream docs into the shared transport buffer, one token per doc.
+fn stream_to_buffer(docs: Vec<String>) -> *mut c_char {
+    tokens_to_buffer(docs.iter().map(|d| d.as_bytes()))
 }
 
 fn multi_result<F>(vm: &VM, eval: F) -> GoResult
@@ -389,10 +436,35 @@ where
     }
 }
 
+fn stream_result<F>(vm: &VM, eval: F) -> GoResult
+where
+    F: FnOnce() -> Result<Val>,
+{
+    let result = catch_unwind(std::panic::AssertUnwindSafe(|| {
+        let _guard = vm.state.enter();
+        eval()
+            .and_then(|val| apply_tla(&vm.tla_args, val))
+            .and_then(|val| manifest_stream(vm, val))
+    }));
+
+    match result {
+        Ok(Ok(docs)) => GoResult {
+            data: stream_to_buffer(docs),
+            error: 0,
+        },
+        Ok(Err(e)) => {
+            let mut out = String::new();
+            vm.trace_format.write_trace(&mut out, &e).unwrap();
+            GoResult::err(out)
+        }
+        Err(panic) => GoResult::panic(panic_message(&panic)),
+    }
+}
+
 /// Evaluate a Jsonnet code snippet in multi-file mode. The top-level value must
 /// be an object; each field is manifested independently. Success payload is the
-/// length-prefixed multi buffer (see module notes), freed with
-/// `jrsonnet_go_free_multi`.
+/// length-prefixed transport buffer (see module notes), freed with
+/// `jrsonnet_go_free_buffer`.
 ///
 /// # Safety
 ///
@@ -420,8 +492,8 @@ pub unsafe extern "C" fn jrsonnet_go_evaluate_snippet_multi(
 
 /// Evaluate a Jsonnet file in multi-file mode. The top-level value must be an
 /// object; each field is manifested independently. Success payload is the
-/// length-prefixed multi buffer (see module notes), freed with
-/// `jrsonnet_go_free_multi`.
+/// length-prefixed transport buffer (see module notes), freed with
+/// `jrsonnet_go_free_buffer`.
 ///
 /// # Safety
 ///
@@ -440,17 +512,68 @@ pub unsafe extern "C" fn jrsonnet_go_evaluate_file_multi(
     })
 }
 
-/// Free a multi-file transport buffer returned by
-/// `jrsonnet_go_evaluate_snippet_multi` / `jrsonnet_go_evaluate_file_multi`
-/// on success (error/panic payloads are C strings freed with
-/// `jrsonnet_go_free_string`).
+/// Evaluate a Jsonnet code snippet in stream mode. The top-level value must be
+/// an array; each element is manifested independently, preserving order.
+/// Success payload is the length-prefixed transport buffer (see module notes),
+/// freed with `jrsonnet_go_free_buffer`.
 ///
 /// # Safety
 ///
-/// `data` must be a pointer returned by a multi evaluation on success, and
-/// `len` must be the exact total length of that buffer (its leading `u64`).
+/// `filename` and `snippet` must be NUL-terminated strings.
+/// `vm` must be a valid pointer.
 #[no_mangle]
-pub unsafe extern "C" fn jrsonnet_go_free_multi(data: *mut c_char, len: usize) {
+pub unsafe extern "C" fn jrsonnet_go_evaluate_snippet_stream(
+    vm: &VM,
+    filename: *const c_char,
+    snippet: *const c_char,
+) -> GoResult {
+    // Do the CStr/to_str conversions inside the caught closure (like the
+    // single-value functions) so non-UTF-8 input yields a graceful panic
+    // (error == 2) instead of unwinding across the FFI boundary.
+    stream_result(vm, || {
+        let filename = unsafe { CStr::from_ptr(filename) }
+            .to_str()
+            .expect("filename is not utf-8");
+        let snippet = unsafe { CStr::from_ptr(snippet) }
+            .to_str()
+            .expect("snippet is not utf-8");
+        vm.state.evaluate_snippet(filename, snippet)
+    })
+}
+
+/// Evaluate a Jsonnet file in stream mode. The top-level value must be an
+/// array; each element is manifested independently, preserving order. Success
+/// payload is the length-prefixed transport buffer (see module notes), freed
+/// with `jrsonnet_go_free_buffer`.
+///
+/// # Safety
+///
+/// `filename` must be a NUL-terminated string.
+/// `vm` must be a valid pointer.
+#[no_mangle]
+pub unsafe extern "C" fn jrsonnet_go_evaluate_file_stream(
+    vm: &VM,
+    filename: *const c_char,
+) -> GoResult {
+    stream_result(vm, || {
+        let filename = unsafe { CStr::from_ptr(filename) }
+            .to_str()
+            .expect("filename is not utf-8");
+        vm.state.import(std::path::Path::new(filename))
+    })
+}
+
+/// Free a multi-file / stream transport buffer returned by the `*_multi` /
+/// `*_stream` evaluation functions on success (error/panic payloads are C
+/// strings freed with `jrsonnet_go_free_string`).
+///
+/// # Safety
+///
+/// `data` must be a pointer returned by a multi/stream evaluation on success,
+/// and `len` must be the exact total length of that buffer (its leading
+/// `u64`).
+#[no_mangle]
+pub unsafe extern "C" fn jrsonnet_go_free_buffer(data: *mut c_char, len: usize) {
     if data.is_null() {
         return;
     }

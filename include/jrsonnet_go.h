@@ -107,6 +107,48 @@ struct GoResult jrsonnet_go_evaluate_snippet(const struct VM *vm,
  */
  struct GoResult jrsonnet_go_evaluate_file(const struct VM *vm, const char *filename);
 
+/**
+ * Evaluate a Jsonnet code snippet in multi-file mode. The top-level value must
+ * be an object; each field is manifested independently. Success payload is the
+ * length-prefixed multi buffer (see module notes), freed with
+ * `jrsonnet_go_free_multi`.
+ *
+ * # Safety
+ *
+ * `filename` and `snippet` must be NUL-terminated strings.
+ * `vm` must be a valid pointer.
+ */
+
+struct GoResult jrsonnet_go_evaluate_snippet_multi(const struct VM *vm,
+                                                   const char *filename,
+                                                   const char *snippet);
+
+/**
+ * Evaluate a Jsonnet file in multi-file mode. The top-level value must be an
+ * object; each field is manifested independently. Success payload is the
+ * length-prefixed multi buffer (see module notes), freed with
+ * `jrsonnet_go_free_multi`.
+ *
+ * # Safety
+ *
+ * `filename` must be a NUL-terminated string.
+ * `vm` must be a valid pointer.
+ */
+ struct GoResult jrsonnet_go_evaluate_file_multi(const struct VM *vm, const char *filename);
+
+/**
+ * Free a multi-file transport buffer returned by
+ * `jrsonnet_go_evaluate_snippet_multi` / `jrsonnet_go_evaluate_file_multi`
+ * on success (error/panic payloads are C strings freed with
+ * `jrsonnet_go_free_string`).
+ *
+ * # Safety
+ *
+ * `data` must be a pointer returned by a multi evaluation on success, and
+ * `len` must be the exact total length of that buffer (its leading `u64`).
+ */
+ void jrsonnet_go_free_multi(char *data, uintptr_t len);
+
 extern void free(void *ptr);
 
 /**

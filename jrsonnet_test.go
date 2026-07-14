@@ -728,3 +728,20 @@ func TestEvaluateSnippetMultiEmptyValue(t *testing.T) {
 		t.Errorf("a.txt = %q, want %q", got, want)
 	}
 }
+
+func TestEvaluateSnippetMultiEmptyFieldName(t *testing.T) {
+	vm, err := New()
+	if err != nil {
+		t.Fatalf("New() error: %v", err)
+	}
+	defer vm.Close()
+
+	if _, err := vm.EvaluateSnippetMulti("m.jsonnet", `{"": "x"}`); err == nil {
+		t.Fatal("expected error for empty field name, got nil")
+	} else {
+		var evalErr *EvaluationError
+		if !errors.As(err, &evalErr) {
+			t.Errorf("expected *EvaluationError, got %T: %v", err, err)
+		}
+	}
+}

@@ -327,6 +327,16 @@ fn manifest_multi(vm: &VM, val: Val) -> Result<Vec<(IStr, String)>> {
 
     let mut out = Vec::new();
     for (field, data) in obj.iter() {
+        // The NUL-separated transport uses an empty key as its terminator, so
+        // an empty field name can't be represented (mirrors upstream
+        // jrsonnet's libjsonnet binding, whose multi format has the same
+        // limitation). Fail loudly rather than silently truncate the output.
+        if field.is_empty() {
+            return Err(jrsonnet_evaluator::error::ErrorKind::RuntimeError(
+                "multi mode: top-level field name must not be empty".into(),
+            )
+            .into());
+        }
         let data = data?;
         let manifested = data.manifest(&*vm.manifest_format)?;
         out.push((field, append_newline(manifested, vm.trailing_newline)));

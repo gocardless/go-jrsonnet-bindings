@@ -139,20 +139,19 @@ func goResultToStringMap(r C.struct_GoResult) (map[string]string, error) {
 
 // decodeMulti parses the NUL-separated body of the multi transport buffer (the
 // header has already been stripped by the caller) into a map. The body is
-// `key\0value\0...\0\0`; splitting on NUL yields the key/value tokens followed
-// by trailing empty token(s) from the `\0\0` terminator, which we discard. An
-// odd number of non-terminator tokens is a malformed buffer.
+// `key\0value\0...\0\0`; splitting on NUL yields key/value tokens terminated by
+// the empty key from the `\0\0` terminator. An empty key marks the end; an
+// empty value is valid (e.g. a field manifesting to the empty string).
 func decodeMulti(body []byte) (map[string]string, error) {
 	tokens := bytes.Split(body, []byte{0})
-	// Drop trailing empty tokens produced by the `\0\0` terminator.
-	for len(tokens) > 0 && len(tokens[len(tokens)-1]) == 0 {
-		tokens = tokens[:len(tokens)-1]
-	}
-	if len(tokens)%2 != 0 {
-		return nil, &EvaluationError{msg: "malformed multi result buffer"}
-	}
-	out := make(map[string]string, len(tokens)/2)
+	out := make(map[string]string)
 	for i := 0; i < len(tokens); i += 2 {
+		if len(tokens[i]) == 0 { // empty key == terminator
+			break
+		}
+		if i+1 >= len(tokens) {
+			return nil, &EvaluationError{msg: "malformed multi result buffer"}
+		}
 		out[string(tokens[i])] = string(tokens[i+1])
 	}
 	return out, nil

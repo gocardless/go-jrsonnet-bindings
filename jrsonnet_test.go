@@ -709,3 +709,22 @@ func TestEvaluateSnippetMultiSpecialChars(t *testing.T) {
 		t.Errorf("special key = %q, want %q", got, want)
 	}
 }
+
+func TestEvaluateSnippetMultiEmptyValue(t *testing.T) {
+	vm, err := New(WithStringOutput(true), WithTrailingNewline(false))
+	if err != nil {
+		t.Fatalf("New() error: %v", err)
+	}
+	defer vm.Close()
+
+	out, err := vm.EvaluateSnippetMulti("m.jsonnet", `{"a.txt": ""}`)
+	if err != nil {
+		t.Fatalf("EvaluateSnippetMulti error: %v", err)
+	}
+	if len(out) != 1 {
+		t.Fatalf("expected 1 file, got %d: %v", len(out), out)
+	}
+	if got, want := out["a.txt"], ""; got != want {
+		t.Errorf("a.txt = %q, want %q", got, want)
+	}
+}

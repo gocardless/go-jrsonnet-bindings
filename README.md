@@ -84,20 +84,19 @@ this repo directly (e.g. `make test`, after `make rust` populates `lib/`). A con
 
 ## Consuming this library
 
-1. Fetch the release tarball for your target triple and extract it so that
-   `<dir>/libjrsonnet_go.a` exists. The triple is chosen by your build platform and
-   libc — glibc for ordinary Linux/macOS builds, musl for Alpine/`scratch` images.
-2. Build with cgo enabled, pointing `CGO_LDFLAGS` at that directory:
+The essentials:
 
-```bash
-CGO_ENABLED=1 CGO_LDFLAGS="-L/path/to/lib/<triple>" go build ./...
-```
+- Build with **CGO enabled** (`CGO_ENABLED=1`) — the bindings link a Rust staticlib.
+- **Fetch the matching library first.** Download the release tarball for your target
+  triple, extract it so `<dir>/libjrsonnet_go.a` exists, and point the linker at it:
+  `CGO_LDFLAGS="-L<dir>"`. There is no build tag — glibc-vs-musl is decided purely by
+  which tarball you fetch.
+- **musl needs extra flags** (`-linkmode external -extldflags "-static -Wl,-z,stack-size=8388608"`);
+  glibc/darwin builds stay dynamic. Prefer glibc unless a fully static binary is a hard
+  requirement — musl carries a small performance penalty.
 
-There is **no build tag**: the linker resolves `-ljrsonnet_go` from the directory you
-supply via `CGO_LDFLAGS`, so glibc-vs-musl selection is determined entirely by which
-tarball you fetch. For a worked example — fetching glibc libs for native builds and
-staging musl libs inside an Alpine container build — see the consumer Makefile and
-`Dockerfile.alpine-test` in the `utopia` repository.
+See [`examples/`](./examples) for a minimal end-to-end consumer (program, fetch script,
+`Makefile`, and musl `Dockerfile`) with the details.
 
 ## Usage
 

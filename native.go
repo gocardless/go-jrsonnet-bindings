@@ -5,7 +5,7 @@ package jrsonnet
 #include <stdlib.h>
 
 // Forward declaration of the Go export — defined in native_bridge.c
-extern int goNativeCallbackBridge(void *ctx, const char *args_json,
+extern int goNativeCallbackBridge(uintptr_t ctx, const char *args_json,
                                    uintptr_t args_json_len, char **result_json,
                                    uintptr_t *result_json_len);
 */
@@ -24,11 +24,10 @@ import (
 type NativeFunc func(args []any) (any, error)
 
 //export goNativeCallback
-func goNativeCallback(ctx unsafe.Pointer, argsJSON *C.char, argsJSONLen C.uintptr_t,
+func goNativeCallback(ctx C.uintptr_t, argsJSON *C.char, argsJSONLen C.uintptr_t,
 	resultJSON **C.char, resultJSONLen *C.uintptr_t) C.int {
-	// ctx is a C-allocated uintptr_t* holding the cgo.Handle value
-	hval := *(*C.uintptr_t)(ctx)
-	h := cgo.Handle(hval)
+	// ctx is the cgo.Handle value passed straight through as an integer.
+	h := cgo.Handle(ctx)
 	fn := h.Value().(NativeFunc)
 
 	// Unmarshal args from JSON
@@ -70,9 +69,7 @@ func goNativeCallback(ctx unsafe.Pointer, argsJSON *C.char, argsJSONLen C.uintpt
 // fn is the Go function that implements the extension.
 func (v *VM) RegisterNativeFunction(name string, params []string, fn NativeFunc) {
 	h := cgo.NewHandle(fn)
-	ctx := allocHandleCtx(h)
 	v.nativeHandles = append(v.nativeHandles, h)
-	v.nativeCtxs = append(v.nativeCtxs, ctx)
 
 	cName := C.CString(name)
 	defer C.free(unsafe.Pointer(cName))
@@ -86,7 +83,7 @@ func (v *VM) RegisterNativeFunction(name string, params []string, fn NativeFunc)
 			v.vm,
 			cName,
 			C.GoNativeCallback(C.goNativeCallbackBridge),
-			ctx,
+			C.uintptr_t(h),
 			cParams,
 		)
 	})

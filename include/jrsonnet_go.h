@@ -34,7 +34,7 @@ typedef struct GoResult {
  *
  * Returns 0 on error (buf/buflen contain error message), 1 on success.
  */
-typedef int (*GoImportCallback)(void *ctx,
+typedef int (*GoImportCallback)(uintptr_t ctx,
                                 const char *base,
                                 const char *rel,
                                 char **found_here,
@@ -52,7 +52,7 @@ typedef int (*GoImportCallback)(void *ctx,
  *
  * Returns 0 on success, 1 on error (result_json contains error message).
  */
-typedef int (*GoNativeCallback)(void *ctx,
+typedef int (*GoNativeCallback)(uintptr_t ctx,
                                 const char *args_json,
                                 uintptr_t args_json_len,
                                 char **result_json,
@@ -118,7 +118,7 @@ extern void free(void *ptr);
  *
  * `cb` must be a valid function pointer. `ctx` is passed through as-is.
  */
- void jrsonnet_go_import_callback(const struct VM *vm, GoImportCallback cb, void *ctx);
+ void jrsonnet_go_import_callback(const struct VM *vm, GoImportCallback cb, uintptr_t ctx);
 
 /**
  * Register a native function on the VM.
@@ -134,7 +134,7 @@ extern void free(void *ptr);
 void jrsonnet_go_native_callback(const struct VM *vm,
                                  const char *name,
                                  GoNativeCallback cb,
-                                 void *ctx,
+                                 uintptr_t ctx,
                                  const char *params_json);
 
 /**

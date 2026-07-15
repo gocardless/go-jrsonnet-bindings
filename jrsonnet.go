@@ -14,7 +14,6 @@ import (
 	"runtime"
 	"runtime/cgo"
 	"sync"
-	"unsafe"
 )
 
 // vmTask is a unit of work dispatched to the VM's dedicated OS thread.
@@ -40,11 +39,11 @@ type VM struct {
 	mu     sync.Mutex // protects closed and serialises sends on tasks
 	closed bool
 
-	// cgo.Handle references for callback cleanup
+	// cgo.Handle references for callback cleanup. The handle values are
+	// passed to Rust as opaque integers (uintptr_t), so there is no
+	// C-allocated context to free — only the handles themselves.
 	importHandle  *cgo.Handle
-	importCtx     unsafe.Pointer // C-allocated ctx for import callback
 	nativeHandles []cgo.Handle
-	nativeCtxs    []unsafe.Pointer // C-allocated ctx for each native callback
 }
 
 // New creates a new Jsonnet VM and applies the given options.
@@ -124,15 +123,13 @@ func (v *VM) Close() error {
 	// release its OS thread.
 	<-v.finished
 
-	// Release cgo handles and free C-allocated contexts. Safe to do here
-	// because the dedicated thread is gone and no callback can still fire.
+	// Release cgo handles. Safe to do here because the dedicated thread is
+	// gone and no callback can still fire.
 	if v.importHandle != nil {
 		v.importHandle.Delete()
-		C.free(v.importCtx)
 	}
-	for i, h := range v.nativeHandles {
+	for _, h := range v.nativeHandles {
 		h.Delete()
-		C.free(v.nativeCtxs[i])
 	}
 
 	return nil

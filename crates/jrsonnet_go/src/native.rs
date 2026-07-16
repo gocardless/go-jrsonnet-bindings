@@ -3,6 +3,7 @@
 use std::{
     ffi::{c_void, CStr, CString},
     os::raw::{c_char, c_int},
+    panic::{catch_unwind, AssertUnwindSafe},
 };
 
 use jrsonnet_evaluator::{
@@ -175,24 +176,30 @@ pub unsafe extern "C" fn jrsonnet_go_native_callback(
     ctx: *mut c_void,
     params_json: *const c_char,
 ) {
-    let name = unsafe { CStr::from_ptr(name) }
-        .to_str()
-        .expect("name is not utf-8");
-    let params_str = unsafe { CStr::from_ptr(params_json) }
-        .to_str()
-        .expect("params is not utf-8");
+    // Catch panics (e.g. non-UTF-8 name/params, or malformed params JSON) so
+    // they never unwind across the FFI boundary into Go/C, which would abort
+    // the process. This function has no return channel, so a caught panic is
+    // swallowed best-effort: the native function is simply not registered.
+    let _ = catch_unwind(AssertUnwindSafe(|| {
+        let name = unsafe { CStr::from_ptr(name) }
+            .to_str()
+            .expect("name is not utf-8");
+        let params_str = unsafe { CStr::from_ptr(params_json) }
+            .to_str()
+            .expect("params is not utf-8");
 
-    let params: Vec<String> =
-        serde_json::from_str(params_str).expect("params_json must be a JSON array of strings");
+        let params: Vec<String> =
+            serde_json::from_str(params_str).expect("params_json must be a JSON array of strings");
 
-    let any_resolver = vm.state.context_initializer();
-    any_resolver
-        .as_any()
-        .downcast_ref::<jrsonnet_stdlib::ContextInitializer>()
-        .expect("only stdlib context initializer supported")
-        .add_native(
-            name,
-            #[allow(deprecated)]
-            NativeCallback::new(params, GoNativeCallbackHandler { ctx, cb }),
-        );
+        let any_resolver = vm.state.context_initializer();
+        any_resolver
+            .as_any()
+            .downcast_ref::<jrsonnet_stdlib::ContextInitializer>()
+            .expect("only stdlib context initializer supported")
+            .add_native(
+                name,
+                #[allow(deprecated)]
+                NativeCallback::new(params, GoNativeCallbackHandler { ctx, cb }),
+            );
+    }));
 }

@@ -1,6 +1,7 @@
 use std::{
     ffi::CStr,
     os::raw::{c_char, c_uint},
+    panic::{catch_unwind, AssertUnwindSafe},
     path::PathBuf,
 };
 
@@ -50,7 +51,13 @@ pub extern "C" fn jrsonnet_go_trailing_newline(vm: &mut VM, flag: c_uint) {
 /// `path` must be a NUL-terminated string.
 #[no_mangle]
 pub unsafe extern "C" fn jrsonnet_go_jpath_add(vm: &VM, path: *const c_char) {
-    let cstr = unsafe { CStr::from_ptr(path) };
-    let path = PathBuf::from(cstr.to_str().expect("jpath is not utf-8"));
-    vm.add_jpath(path);
+    // Catch panics (e.g. non-UTF-8 path, or the internal invariant checks in
+    // `add_jpath`) so they never unwind across the FFI boundary into Go/C,
+    // which would abort the process. This function has no return channel, so a
+    // caught panic is swallowed best-effort: the jpath is simply not added.
+    let _ = catch_unwind(AssertUnwindSafe(|| {
+        let cstr = unsafe { CStr::from_ptr(path) };
+        let path = PathBuf::from(cstr.to_str().expect("jpath is not utf-8"));
+        vm.add_jpath(path);
+    }));
 }

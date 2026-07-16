@@ -44,15 +44,31 @@ func (v *VM) ExtCode(key, code string) error {
 }
 
 // TLAVar binds a top-level string argument.
-func (v *VM) TLAVar(key, val string) {
+//
+// It returns an error if the binding cannot be applied (for example, if key or
+// val is not valid UTF-8, which jrsonnet cannot represent). Callers migrating
+// from go-jsonnet, whose TLAVar cannot fail, may ignore the returned error to
+// preserve the previous silently-dropped behaviour.
+func (v *VM) TLAVar(key, val string) error {
 	cKey := C.CString(key)
 	cVal := C.CString(val)
 	defer C.free(unsafe.Pointer(cKey))
 	defer C.free(unsafe.Pointer(cVal))
 
-	_ = v.withThread(func() {
-		C.jrsonnet_go_tla_var(v.vm, cKey, cVal)
+	var errMsg *C.char
+	var rc C.int
+
+	err := v.withThread(func() {
+		rc = C.jrsonnet_go_tla_var(v.vm, cKey, cVal, &errMsg)
 	})
+	if err != nil {
+		return err
+	}
+	if rc != 0 && errMsg != nil {
+		defer C.jrsonnet_go_free_string(errMsg)
+		return &EvaluationError{msg: C.GoString(errMsg)}
+	}
+	return nil
 }
 
 // TLACode binds a top-level code argument.

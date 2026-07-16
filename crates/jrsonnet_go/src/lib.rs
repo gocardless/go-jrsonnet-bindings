@@ -283,7 +283,7 @@ fn append_newline(mut s: String, enabled: bool) -> String {
     s
 }
 
-fn panic_message(panic: &Box<dyn Any + Send>) -> String {
+pub(crate) fn panic_message(panic: &Box<dyn Any + Send>) -> String {
     if let Some(s) = panic.downcast_ref::<&str>() {
         s.to_string()
     } else if let Some(s) = panic.downcast_ref::<String>() {

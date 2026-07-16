@@ -209,13 +209,16 @@ void jrsonnet_go_native_callback(const struct VM *vm,
  int jrsonnet_go_ext_code(const struct VM *vm, const char *name, const char *code, char **err_out);
 
 /**
- * Bind a top-level string argument.
+ * Bind a top-level string argument. Returns 0 on success, 1 on error.
+ * On error, writes error message to `err_out` (caller must free with
+ * `jrsonnet_go_free_string`).
  *
  * # Safety
  *
  * `name`, `value` must be NUL-terminated strings.
+ * `err_out` must be a valid pointer.
  */
- int jrsonnet_go_tla_var(struct VM *vm, const char *name, const char *value);
+ int jrsonnet_go_tla_var(struct VM *vm, const char *name, const char *value, char **err_out);
 
 /**
  * Bind a top-level code argument. Returns 0 on success, 1 on error.

@@ -591,3 +591,109 @@ func TestStubsReturnNotImplemented(t *testing.T) {
 		t.Errorf("EvaluateFileStream: expected ErrNotImplemented, got %v", err)
 	}
 }
+
+// --- Non-UTF-8 input handling (FFI hardening) ---
+
+// invalidUTF8 is a byte sequence that is never valid UTF-8 (0xff can never
+// appear in a UTF-8 stream) but contains no NUL, so it survives the round trip
+// through C.CString unchanged. Feeding it across the FFI boundary used to hit a
+// Rust `.expect("... is not utf-8")`, panicking through `extern "C"` and
+// aborting the whole process. After hardening, the panic is caught on the Rust
+// side and never unwinds into cgo.
+const invalidUTF8 = "\xff\xfe"
+
+// assertUsable checks the VM still works after a hardened call swallowed/
+// reported a caught panic (i.e. the process did not abort and no state was
+// corrupted).
+func assertUsable(t *testing.T, vm *VM) {
+	t.Helper()
+	got, err := vm.EvaluateSnippet("check.jsonnet", `1 + 1`)
+	if err != nil {
+		t.Fatalf("VM unusable after hardened call: %v", err)
+	}
+	if got != "2\n" {
+		t.Fatalf("unexpected result after hardened call: %q", got)
+	}
+}
+
+func TestExtVarInvalidUTF8DoesNotAbort(t *testing.T) {
+	vm, err := New()
+	if err != nil {
+		t.Fatalf("New() error: %v", err)
+	}
+	defer vm.Close()
+
+	// Must not abort the process; ExtVar has no error channel, so the binding
+	// is simply dropped.
+	vm.ExtVar("key", invalidUTF8)
+	vm.ExtVar(invalidUTF8, "value")
+	assertUsable(t, vm)
+}
+
+func TestTLAVarInvalidUTF8ReturnsError(t *testing.T) {
+	vm, err := New()
+	if err != nil {
+		t.Fatalf("New() error: %v", err)
+	}
+	defer vm.Close()
+
+	// TLAVar reports the caught panic via its error return, so a silently
+	// dropped binding (which could otherwise change evaluation output when a
+	// top-level parameter has a default) is detectable rather than invisible.
+	if err := vm.TLAVar("key", invalidUTF8); err == nil {
+		t.Fatal("TLAVar(invalidUTF8 value): expected error, got nil")
+	}
+	if err := vm.TLAVar(invalidUTF8, "value"); err == nil {
+		t.Fatal("TLAVar(invalidUTF8 key): expected error, got nil")
+	}
+	assertUsable(t, vm)
+}
+
+func TestExtCodeInvalidUTF8ReturnsError(t *testing.T) {
+	vm, err := New()
+	if err != nil {
+		t.Fatalf("New() error: %v", err)
+	}
+	defer vm.Close()
+
+	// ExtCode has an error channel, so the caught panic is reported rather than
+	// silently dropped or aborting the process.
+	if err := vm.ExtCode(invalidUTF8, "1 + 1"); err == nil {
+		t.Fatal("ExtCode(invalidUTF8 key): expected error, got nil")
+	}
+	if err := vm.ExtCode("key", invalidUTF8); err == nil {
+		t.Fatal("ExtCode(invalidUTF8 code): expected error, got nil")
+	}
+	assertUsable(t, vm)
+}
+
+func TestTLACodeInvalidUTF8ReturnsError(t *testing.T) {
+	vm, err := New()
+	if err != nil {
+		t.Fatalf("New() error: %v", err)
+	}
+	defer vm.Close()
+
+	if err := vm.TLACode(invalidUTF8, "1 + 1"); err == nil {
+		t.Fatal("TLACode(invalidUTF8 key): expected error, got nil")
+	}
+	if err := vm.TLACode("key", invalidUTF8); err == nil {
+		t.Fatal("TLACode(invalidUTF8 code): expected error, got nil")
+	}
+	assertUsable(t, vm)
+}
+
+func TestRegisterNativeFunctionInvalidUTF8DoesNotAbort(t *testing.T) {
+	vm, err := New()
+	if err != nil {
+		t.Fatalf("New() error: %v", err)
+	}
+	defer vm.Close()
+
+	// Registration has no error channel; a caught panic leaves the function
+	// unregistered without aborting the process.
+	vm.RegisterNativeFunction(invalidUTF8, []string{"x"}, func(args []any) (any, error) {
+		return nil, nil
+	})
+	assertUsable(t, vm)
+}

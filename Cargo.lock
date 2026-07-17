@@ -614,7 +614,6 @@ version = "0.1.0"
 dependencies = [
  "jrsonnet-evaluator",
  "jrsonnet-gcmodule",
- "jrsonnet-interner",
  "jrsonnet-ir",
  "jrsonnet-stdlib",
  "serde_json",

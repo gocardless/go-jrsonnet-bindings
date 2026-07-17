@@ -6,7 +6,6 @@ sys_includes = ["stdarg.h", "stdbool.h", "stddef.h", "stdint.h", "stdlib.h"]
 [export]
 include = [
     "VM",
-    "ThreadCTX",
     "GoResult",
     "GoImportCallback",
     "GoNativeCallback",

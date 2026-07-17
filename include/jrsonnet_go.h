@@ -7,8 +7,6 @@
 #include <stdint.h>
 #include <stdlib.h>
 
-typedef struct ThreadCTX ThreadCTX;
-
 typedef struct VM VM;
 
 /**
@@ -166,27 +164,6 @@ void jrsonnet_go_native_callback(const struct VM *vm,
  * `path` must be a NUL-terminated string.
  */
  void jrsonnet_go_jpath_add(const struct VM *vm, const char *path);
-
-/**
- * Save the current thread's TLS state (interner + GC) and return a handle.
- * After this call, the current thread must NOT use jrsonnet until
- * `jrsonnet_go_reenter_thread` is called.
- *
- * # Safety
- *
- * Current thread GC/interner will be broken after this call.
- */
- struct ThreadCTX *jrsonnet_go_exit_thread(void);
-
-/**
- * Restore TLS state from a previously saved handle.
- *
- * # Safety
- *
- * `ctx` must be a valid pointer returned by `jrsonnet_go_exit_thread` and
- * must not have been used already.
- */
- void jrsonnet_go_reenter_thread(struct ThreadCTX *ctx);
 
 /**
  * Bind an external string variable.

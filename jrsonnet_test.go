@@ -578,16 +578,170 @@ func TestStubsReturnNotImplemented(t *testing.T) {
 	}
 	defer vm.Close()
 
-	if _, err := vm.EvaluateSnippetMulti("", ""); !errors.Is(err, ErrNotImplemented) {
-		t.Errorf("EvaluateSnippetMulti: expected ErrNotImplemented, got %v", err)
-	}
-	if _, err := vm.EvaluateFileMulti(""); !errors.Is(err, ErrNotImplemented) {
-		t.Errorf("EvaluateFileMulti: expected ErrNotImplemented, got %v", err)
-	}
 	if _, err := vm.EvaluateSnippetStream("", ""); !errors.Is(err, ErrNotImplemented) {
 		t.Errorf("EvaluateSnippetStream: expected ErrNotImplemented, got %v", err)
 	}
 	if _, err := vm.EvaluateFileStream(""); !errors.Is(err, ErrNotImplemented) {
 		t.Errorf("EvaluateFileStream: expected ErrNotImplemented, got %v", err)
+	}
+}
+
+// --- EvaluateSnippetMulti / EvaluateFileMulti ---
+
+func TestEvaluateSnippetMultiFields(t *testing.T) {
+	vm, err := New()
+	if err != nil {
+		t.Fatalf("New() error: %v", err)
+	}
+	defer vm.Close()
+
+	out, err := vm.EvaluateSnippetMulti("multi.jsonnet", `{
+  "a.json": {x: 1},
+  "b.json": {y: 2},
+}`)
+	if err != nil {
+		t.Fatalf("EvaluateSnippetMulti error: %v", err)
+	}
+	if len(out) != 2 {
+		t.Fatalf("expected 2 files, got %d: %v", len(out), out)
+	}
+	// Each field is manifested independently as JSON, with a trailing newline
+	// per file by default (matching go-jsonnet).
+	if got, want := out["a.json"], "{\n    \"x\": 1\n}\n"; got != want {
+		t.Errorf("a.json = %q, want %q", got, want)
+	}
+	if got, want := out["b.json"], "{\n    \"y\": 2\n}\n"; got != want {
+		t.Errorf("b.json = %q, want %q", got, want)
+	}
+}
+
+func TestEvaluateFileMulti(t *testing.T) {
+	vm, err := New()
+	if err != nil {
+		t.Fatalf("New() error: %v", err)
+	}
+	defer vm.Close()
+
+	out, err := vm.EvaluateFileMulti(testdataPath("multi.jsonnet"))
+	if err != nil {
+		t.Fatalf("EvaluateFileMulti error: %v", err)
+	}
+	if len(out) != 2 {
+		t.Fatalf("expected 2 files, got %d: %v", len(out), out)
+	}
+	if got, want := out["a.json"], "{\n    \"x\": 1\n}\n"; got != want {
+		t.Errorf("a.json = %q, want %q", got, want)
+	}
+}
+
+func TestEvaluateSnippetMultiNonObject(t *testing.T) {
+	vm, err := New()
+	if err != nil {
+		t.Fatalf("New() error: %v", err)
+	}
+	defer vm.Close()
+
+	if _, err := vm.EvaluateSnippetMulti("multi.jsonnet", `[1, 2, 3]`); err == nil {
+		t.Fatal("expected error for non-object top-level value, got nil")
+	} else {
+		var evalErr *EvaluationError
+		if !errors.As(err, &evalErr) {
+			t.Errorf("expected *EvaluationError, got %T: %v", err, err)
+		}
+	}
+}
+
+func TestEvaluateSnippetMultiStringOutput(t *testing.T) {
+	vm, err := New(WithStringOutput(true))
+	if err != nil {
+		t.Fatalf("New() error: %v", err)
+	}
+	defer vm.Close()
+
+	out, err := vm.EvaluateSnippetMulti("multi.jsonnet", `{
+  "greeting.txt": "hello",
+  "name.txt": "world",
+}`)
+	if err != nil {
+		t.Fatalf("EvaluateSnippetMulti error: %v", err)
+	}
+	// String-output mode emits the raw string (not JSON-quoted), plus the
+	// per-file trailing newline.
+	if got, want := out["greeting.txt"], "hello\n"; got != want {
+		t.Errorf("greeting.txt = %q, want %q", got, want)
+	}
+	if got, want := out["name.txt"], "world\n"; got != want {
+		t.Errorf("name.txt = %q, want %q", got, want)
+	}
+}
+
+func TestEvaluateSnippetMultiNoTrailingNewline(t *testing.T) {
+	vm, err := New(WithTrailingNewline(false))
+	if err != nil {
+		t.Fatalf("New() error: %v", err)
+	}
+	defer vm.Close()
+
+	out, err := vm.EvaluateSnippetMulti("multi.jsonnet", `{"a.json": {x: 1}}`)
+	if err != nil {
+		t.Fatalf("EvaluateSnippetMulti error: %v", err)
+	}
+	if got, want := out["a.json"], "{\n    \"x\": 1\n}"; got != want {
+		t.Errorf("a.json = %q, want %q", got, want)
+	}
+}
+
+func TestEvaluateSnippetMultiSpecialChars(t *testing.T) {
+	vm, err := New(WithStringOutput(true))
+	if err != nil {
+		t.Fatalf("New() error: %v", err)
+	}
+	defer vm.Close()
+
+	// Keys and values with newlines and quotes must round-trip losslessly.
+	out, err := vm.EvaluateSnippetMulti("multi.jsonnet", `{
+  "weird\nkey\"": "line1\nline2\"quoted\"",
+}`)
+	if err != nil {
+		t.Fatalf("EvaluateSnippetMulti error: %v", err)
+	}
+	if got, want := out["weird\nkey\""], "line1\nline2\"quoted\"\n"; got != want {
+		t.Errorf("special key = %q, want %q", got, want)
+	}
+}
+
+func TestEvaluateSnippetMultiEmptyValue(t *testing.T) {
+	vm, err := New(WithStringOutput(true), WithTrailingNewline(false))
+	if err != nil {
+		t.Fatalf("New() error: %v", err)
+	}
+	defer vm.Close()
+
+	out, err := vm.EvaluateSnippetMulti("m.jsonnet", `{"a.txt": ""}`)
+	if err != nil {
+		t.Fatalf("EvaluateSnippetMulti error: %v", err)
+	}
+	if len(out) != 1 {
+		t.Fatalf("expected 1 file, got %d: %v", len(out), out)
+	}
+	if got, want := out["a.txt"], ""; got != want {
+		t.Errorf("a.txt = %q, want %q", got, want)
+	}
+}
+
+func TestEvaluateSnippetMultiEmptyFieldName(t *testing.T) {
+	vm, err := New()
+	if err != nil {
+		t.Fatalf("New() error: %v", err)
+	}
+	defer vm.Close()
+
+	if _, err := vm.EvaluateSnippetMulti("m.jsonnet", `{"": "x"}`); err == nil {
+		t.Fatal("expected error for empty field name, got nil")
+	} else {
+		var evalErr *EvaluationError
+		if !errors.As(err, &evalErr) {
+			t.Errorf("expected *EvaluationError, got %T: %v", err, err)
+		}
 	}
 }

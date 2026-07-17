@@ -195,8 +195,12 @@ result, _ := vm.EvaluateSnippet("test.jsonnet", `function(env, port) {
 |---|---|
 | `EvaluateSnippet(filename, snippet string) (string, error)` | Evaluate a Jsonnet code string |
 | `EvaluateFile(filename string) (string, error)` | Evaluate a Jsonnet file |
+| `EvaluateSnippetMulti(filename, snippet string) (map[string]string, error)` | Evaluate a snippet in multi mode (top-level object → file name to output) |
+| `EvaluateFileMulti(filename string) (map[string]string, error)` | Evaluate a file in multi mode |
+| `EvaluateSnippetStream(filename, snippet string) ([]string, error)` | Evaluate a snippet in stream mode (top-level array → ordered outputs) |
+| `EvaluateFileStream(filename string) ([]string, error)` | Evaluate a file in stream mode |
 
-> **Note:** `EvaluateSnippetMulti`, `EvaluateFileMulti`, `EvaluateSnippetStream`, and `EvaluateFileStream` are defined but not yet implemented — they return `ErrNotImplemented`.
+> **Limitations:** multi keys and stream/multi tokens can't contain a literal NUL byte, multi field names must be non-empty, and an empty stream document terminates the stream early. These mirror upstream jrsonnet's own libjsonnet multi/stream bindings.
 
 ### Options (passed to `New`)
 
@@ -231,7 +235,6 @@ result, _ := vm.EvaluateSnippet("test.jsonnet", `function(env, port) {
 | `EvaluationError` | Jsonnet evaluation error |
 | `PanicError` | Rust panic caught at FFI boundary |
 | `ErrVMClosed` | Operation on a closed VM |
-| `ErrNotImplemented` | Stub for unimplemented features |
 
 ## Thread Safety
 

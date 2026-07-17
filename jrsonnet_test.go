@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"path/filepath"
 	"runtime"
+	"slices"
 	"strings"
 	"sync"
 	"testing"
@@ -569,23 +570,6 @@ func TestConcurrentCallsOnSameVM(t *testing.T) {
 	}
 }
 
-// --- Stubs ---
-
-func TestStubsReturnNotImplemented(t *testing.T) {
-	vm, err := New()
-	if err != nil {
-		t.Fatalf("New() error: %v", err)
-	}
-	defer vm.Close()
-
-	if _, err := vm.EvaluateSnippetStream("", ""); !errors.Is(err, ErrNotImplemented) {
-		t.Errorf("EvaluateSnippetStream: expected ErrNotImplemented, got %v", err)
-	}
-	if _, err := vm.EvaluateFileStream(""); !errors.Is(err, ErrNotImplemented) {
-		t.Errorf("EvaluateFileStream: expected ErrNotImplemented, got %v", err)
-	}
-}
-
 // --- EvaluateSnippetMulti / EvaluateFileMulti ---
 
 func TestEvaluateSnippetMultiFields(t *testing.T) {
@@ -743,5 +727,122 @@ func TestEvaluateSnippetMultiEmptyFieldName(t *testing.T) {
 		if !errors.As(err, &evalErr) {
 			t.Errorf("expected *EvaluationError, got %T: %v", err, err)
 		}
+	}
+}
+
+// --- EvaluateSnippetStream / EvaluateFileStream ---
+
+func TestEvaluateSnippetStreamOrder(t *testing.T) {
+	vm, err := New()
+	if err != nil {
+		t.Fatalf("New() error: %v", err)
+	}
+	defer vm.Close()
+
+	out, err := vm.EvaluateSnippetStream("stream.jsonnet", `[3, 1, 2]`)
+	if err != nil {
+		t.Fatalf("EvaluateSnippetStream error: %v", err)
+	}
+	// Order must be preserved (unlike multi's map).
+	if want := []string{"3\n", "1\n", "2\n"}; !slices.Equal(out, want) {
+		t.Errorf("stream = %q, want %q", out, want)
+	}
+}
+
+func TestEvaluateFileStream(t *testing.T) {
+	vm, err := New()
+	if err != nil {
+		t.Fatalf("New() error: %v", err)
+	}
+	defer vm.Close()
+
+	out, err := vm.EvaluateFileStream(testdataPath("stream.jsonnet"))
+	if err != nil {
+		t.Fatalf("EvaluateFileStream error: %v", err)
+	}
+	if want := []string{"3\n", "1\n", "2\n"}; !slices.Equal(out, want) {
+		t.Errorf("stream = %q, want %q", out, want)
+	}
+}
+
+func TestEvaluateSnippetStreamNonArray(t *testing.T) {
+	vm, err := New()
+	if err != nil {
+		t.Fatalf("New() error: %v", err)
+	}
+	defer vm.Close()
+
+	if _, err := vm.EvaluateSnippetStream("stream.jsonnet", `{x: 1}`); err == nil {
+		t.Fatal("expected error for non-array top-level value, got nil")
+	} else {
+		var evalErr *EvaluationError
+		if !errors.As(err, &evalErr) {
+			t.Errorf("expected *EvaluationError, got %T: %v", err, err)
+		}
+	}
+}
+
+func TestEvaluateSnippetStreamStringOutput(t *testing.T) {
+	vm, err := New(WithStringOutput(true))
+	if err != nil {
+		t.Fatalf("New() error: %v", err)
+	}
+	defer vm.Close()
+
+	out, err := vm.EvaluateSnippetStream("stream.jsonnet", `["hello", "world"]`)
+	if err != nil {
+		t.Fatalf("EvaluateSnippetStream error: %v", err)
+	}
+	if want := []string{"hello\n", "world\n"}; !slices.Equal(out, want) {
+		t.Errorf("stream = %q, want %q", out, want)
+	}
+}
+
+func TestEvaluateSnippetStreamNoTrailingNewline(t *testing.T) {
+	vm, err := New(WithTrailingNewline(false))
+	if err != nil {
+		t.Fatalf("New() error: %v", err)
+	}
+	defer vm.Close()
+
+	out, err := vm.EvaluateSnippetStream("stream.jsonnet", `[{x: 1}, {y: 2}]`)
+	if err != nil {
+		t.Fatalf("EvaluateSnippetStream error: %v", err)
+	}
+	if want := []string{"{\n    \"x\": 1\n}", "{\n    \"y\": 2\n}"}; !slices.Equal(out, want) {
+		t.Errorf("stream = %q, want %q", out, want)
+	}
+}
+
+func TestEvaluateSnippetStreamSpecialChars(t *testing.T) {
+	vm, err := New(WithStringOutput(true))
+	if err != nil {
+		t.Fatalf("New() error: %v", err)
+	}
+	defer vm.Close()
+
+	// Values with newlines and quotes must round-trip losslessly.
+	out, err := vm.EvaluateSnippetStream("stream.jsonnet", `["line1\nline2\"quoted\"", "second"]`)
+	if err != nil {
+		t.Fatalf("EvaluateSnippetStream error: %v", err)
+	}
+	if want := []string{"line1\nline2\"quoted\"\n", "second\n"}; !slices.Equal(out, want) {
+		t.Errorf("stream = %q, want %q", out, want)
+	}
+}
+
+func TestEvaluateSnippetStreamEmptyArray(t *testing.T) {
+	vm, err := New()
+	if err != nil {
+		t.Fatalf("New() error: %v", err)
+	}
+	defer vm.Close()
+
+	out, err := vm.EvaluateSnippetStream("stream.jsonnet", `[]`)
+	if err != nil {
+		t.Fatalf("EvaluateSnippetStream error: %v", err)
+	}
+	if len(out) != 0 {
+		t.Errorf("expected empty slice, got %q", out)
 	}
 }

@@ -27,8 +27,11 @@ use crate::VM;
 /// - `buflen`: output: length of `buf`
 ///
 /// Returns 0 on error (buf/buflen contain error message), 1 on success.
+// `ctx` is an opaque Go `cgo.Handle` value (an integer), passed through FFI as a
+// `usize` rather than a raw pointer: there is no C-heap allocation to manage,
+// and the resolver simply hands the same integer back to the callback.
 pub type GoImportCallback = unsafe extern "C" fn(
-    ctx: *mut c_void,
+    ctx: usize,
     base: *const c_char,
     rel: *const c_char,
     found_here: *mut *mut c_char,
@@ -41,7 +44,7 @@ pub type GoImportCallback = unsafe extern "C" fn(
 struct GoImportResolver {
     #[allow(dead_code)]
     cb: GoImportCallback,
-    ctx: *mut c_void,
+    ctx: usize,
     out: RefCell<HashMap<SourcePath, Vec<u8>>>,
 }
 
@@ -161,7 +164,7 @@ unsafe fn libc_free(ptr: *mut c_void) {
 pub unsafe extern "C" fn jrsonnet_go_import_callback(
     vm: &VM,
     cb: GoImportCallback,
-    ctx: *mut c_void,
+    ctx: usize,
 ) {
     vm.replace_import_resolver(GoImportResolver {
         cb,

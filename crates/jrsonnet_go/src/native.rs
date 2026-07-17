@@ -5,6 +5,11 @@ use std::{
     os::raw::{c_char, c_int},
 };
 
+// `ctx` is an opaque Go `cgo.Handle` value (an integer), passed through FFI as a
+// `usize`. Keeping it as an integer rather than a raw pointer means the handler
+// struct is automatically `Send + Sync` (no `unsafe impl` needed) and there is
+// no C-heap allocation to manage for the context.
+
 use jrsonnet_evaluator::{
     error::{Error, ErrorKind},
     function::builtin::{NativeCallback, NativeCallbackHandler},
@@ -27,7 +32,7 @@ use crate::VM;
 ///
 /// Returns 0 on success, 1 on error (result_json contains error message).
 pub type GoNativeCallback = unsafe extern "C" fn(
-    ctx: *mut c_void,
+    ctx: usize,
     args_json: *const c_char,
     args_json_len: usize,
     result_json: *mut *mut c_char,
@@ -36,15 +41,14 @@ pub type GoNativeCallback = unsafe extern "C" fn(
 
 #[derive(jrsonnet_gcmodule::Trace)]
 struct GoNativeCallbackHandler {
+    // A Go cgo.Handle value (opaque integer). Both `usize` and `extern "C" fn`
+    // pointers are `Send + Sync`, so the handler is auto-`Send + Sync`; the Go
+    // side still serialises all access to the VM.
     #[trace(skip)]
-    ctx: *mut c_void,
+    ctx: usize,
     #[trace(skip)]
     cb: GoNativeCallback,
 }
-
-// Safety: The Go side ensures thread safety via mutex serialization.
-unsafe impl Send for GoNativeCallbackHandler {}
-unsafe impl Sync for GoNativeCallbackHandler {}
 
 /// Convert a jrsonnet Val to a serde_json::Value.
 fn val_to_json(val: &Val) -> serde_json::Value {
@@ -172,7 +176,7 @@ pub unsafe extern "C" fn jrsonnet_go_native_callback(
     vm: &VM,
     name: *const c_char,
     cb: GoNativeCallback,
-    ctx: *mut c_void,
+    ctx: usize,
     params_json: *const c_char,
 ) {
     let name = unsafe { CStr::from_ptr(name) }

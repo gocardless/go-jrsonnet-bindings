@@ -204,9 +204,10 @@ result, _ := vm.EvaluateSnippet("test.jsonnet", `function(env, port) {
 
 | Option | Description |
 |---|---|
-| `WithMaxStack(depth uint)` | Set maximum stack depth |
-| `WithMaxTrace(lines uint)` | Set maximum stack trace lines (0 = all) |
-| `WithStringOutput(enabled bool)` | Output raw strings instead of JSON |
+| `WithMaxStack(depth uint)` | Set maximum stack depth (default 500) |
+| `WithMaxTrace(frames uint)` | Set maximum stack frames shown in an error (default 20, 0 = all) |
+| `WithStringOutput(enabled bool)` | Output raw strings instead of JSON (the result must be a string) |
+| `WithTrailingNewline(enabled bool)` | Append a newline to each output (default true) |
 | `WithJPath(paths ...string)` | Add library search paths (a later path wins) |
 | `WithImporter(fn ImportFunc)` | Set a custom import callback (can't be combined with `WithJPath`) |
 

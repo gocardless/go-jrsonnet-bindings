@@ -154,12 +154,14 @@ void jrsonnet_go_native_callback(struct VM *vm,
  void jrsonnet_go_max_stack(const struct VM *_vm, unsigned int depth);
 
 /**
- * Set the number of lines of stack trace to display (0 for all).
+ * Set the maximum number of stack frames shown in an error (0 for all).
  */
  void jrsonnet_go_max_trace(struct VM *vm, unsigned int lines);
 
 /**
- * Set string output mode. When enabled (flag=1), output is not JSON-encoded.
+ * Set string output mode. When `flag` is 1, the result must be a string,
+ * output as is. Like go-jsonnet and the jrsonnet CLI, any other result is an
+ * error.
  */
  void jrsonnet_go_string_output(struct VM *vm, unsigned int flag);
 

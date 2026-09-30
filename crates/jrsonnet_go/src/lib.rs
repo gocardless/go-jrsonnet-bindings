@@ -9,7 +9,8 @@ pub mod vars_tlas;
 use std::{path::PathBuf, rc::Rc};
 
 use jrsonnet_evaluator::{
-    manifest::{JsonFormat, ManifestFormat},
+    manifest::ManifestFormat,
+    stack::set_stack_depth_limit,
     rustc_hash::FxHashMap,
     tla::TlaArg,
     trace::{CompactFormat, PathResolver, TraceFormat},
@@ -32,6 +33,8 @@ pub struct VM {
     pub(crate) ctx: ContextInitializer,
     pub(crate) manifest_format: Box<dyn ManifestFormat>,
     pub(crate) trace_format: Box<dyn TraceFormat>,
+    /// Stack frames shown in an error, 0 for all.
+    pub(crate) max_trace: usize,
     pub(crate) tla_args: FxHashMap<IStr, TlaArg>,
     pub(crate) trailing_newline: bool,
     /// The import resolver in `state`.
@@ -69,13 +72,16 @@ pub unsafe extern "C" fn jrsonnet_go_vm_make_with_importer(
 }
 
 fn make_vm(resolver: impl ImportResolver) -> *mut VM {
+    // The limit is per thread, and each VM has its own thread.
+    set_stack_depth_limit(settings::DEFAULT_MAX_STACK);
     let ctx = ContextInitializer::new(PathResolver::new_cwd_fallback());
     let resolver = SharedResolver(Rc::new(resolver));
     Box::into_raw(Box::new(VM {
         state: build_state(&ctx, &resolver),
         ctx,
-        manifest_format: Box::new(JsonFormat::default()),
+        manifest_format: settings::json_format(),
         trace_format: Box::new(CompactFormat::default()),
+        max_trace: settings::DEFAULT_MAX_TRACE,
         tla_args: FxHashMap::default(),
         trailing_newline: true,
         resolver,

@@ -38,7 +38,12 @@ func newConfig(opts []Option) (*config, error) {
 	return c, nil
 }
 
-// WithMaxStack sets the maximum stack depth for the VM.
+// WithMaxStack sets the maximum stack depth for the VM. Defaults to 500, as in
+// go-jsonnet.
+//
+// Past a few thousand frames, jrsonnet continues on a stack it allocates
+// itself. A native function or importer called from there crashes the
+// process, so keep the limit well below that when using either.
 func WithMaxStack(depth uint) Option {
 	return optionFunc(func(c *config) error {
 		c.maxStack = &depth
@@ -46,17 +51,20 @@ func WithMaxStack(depth uint) Option {
 	})
 }
 
-// WithMaxTrace sets the maximum number of stack trace lines displayed on error.
-// 0 means show all.
-func WithMaxTrace(lines uint) Option {
+// WithMaxTrace sets the maximum number of stack frames shown in an error,
+// keeping the first and last ones. As in go-jsonnet, it defaults to 20, and 0
+// shows all.
+func WithMaxTrace(frames uint) Option {
 	return optionFunc(func(c *config) error {
-		c.maxTrace = &lines
+		c.maxTrace = &frames
 		return nil
 	})
 }
 
 // WithStringOutput sets whether the output should be treated as a raw string
-// (true) or JSON (false).
+// (true) or JSON (false). As in go-jsonnet, with string output a result or
+// multi field that isn't a string is an error. Unlike go-jsonnet, this also
+// applies to stream elements.
 func WithStringOutput(enabled bool) Option {
 	return optionFunc(func(c *config) error {
 		c.stringOutput = enabled

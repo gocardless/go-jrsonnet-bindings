@@ -12,6 +12,7 @@ import "C"
 
 import (
 	"errors"
+	"math"
 	"runtime"
 	"runtime/cgo"
 	"strings"
@@ -124,14 +125,19 @@ func (v *VM) create(c *config) error {
 	}
 
 	if c.maxStack != nil {
-		C.jrsonnet_go_max_stack(v.vm, C.uint(*c.maxStack))
+		C.jrsonnet_go_max_stack(v.vm, cUint(*c.maxStack))
 	}
 	if c.maxTrace != nil {
-		C.jrsonnet_go_max_trace(v.vm, C.uint(*c.maxTrace))
+		C.jrsonnet_go_max_trace(v.vm, cUint(*c.maxTrace))
 	}
 	C.jrsonnet_go_string_output(v.vm, cFlag(c.stringOutput))
 	C.jrsonnet_go_trailing_newline(v.vm, cFlag(c.trailingNewline))
 	return nil
+}
+
+// cUint converts u, saturating instead of wrapping.
+func cUint(u uint) C.uint {
+	return C.uint(min(u, math.MaxUint32))
 }
 
 func cFlag(b bool) C.uint {

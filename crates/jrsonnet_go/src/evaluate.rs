@@ -11,7 +11,7 @@
 
 use std::os::raw::c_int;
 
-use jrsonnet_evaluator::{apply_tla, bail, Error, Result, Val};
+use jrsonnet_evaluator::{apply_tla, bail, Error, Result, StackTraceElement, Val};
 
 use crate::{
     input::GoStr,
@@ -53,7 +53,7 @@ pub extern "C" fn jrsonnet_go_evaluate(
             .and_then(|val| manifest(vm, val, mode))
         {
             Ok(data) => GoResult::ok(data),
-            Err(e) => GoResult::err(format_error(vm, &e)),
+            Err(e) => GoResult::err(format_error(vm, e)),
         }
     });
     if result.error != 0 {
@@ -110,11 +110,58 @@ fn push_entry(out: &mut Vec<u8>, entry: &[u8]) {
     out.extend_from_slice(entry);
 }
 
-fn format_error(vm: &VM, e: &Error) -> String {
+fn format_error(vm: &VM, mut e: Error) -> String {
+    crop_trace(&mut e.trace_mut().0, vm.max_trace);
     let mut out = String::new();
-    match vm.trace_format.write_trace(&mut out, e) {
+    match vm.trace_format.write_trace(&mut out, &e) {
         Ok(()) => out,
         // Fails only if a Display impl fails.
         Err(_) => e.to_string(),
+    }
+}
+
+/// Keeps at most `max` frames, or all if `max` is 0. Like go-jsonnet, it keeps
+/// the first and last frames, with a "..." frame in between. jrsonnet never
+/// reads `CompactFormat::max_trace`.
+fn crop_trace(frames: &mut Vec<StackTraceElement>, max: usize) {
+    if max == 0 || frames.len() <= max {
+        return;
+    }
+    let above = max / 2;
+    let below = max - above;
+    let skipped = StackTraceElement {
+        location: None,
+        desc: "...".to_owned(),
+    };
+    frames.splice(above..frames.len() - below, [skipped]);
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn crops_traces_like_go_jsonnet() {
+        let frames = |n: usize| -> Vec<StackTraceElement> {
+            (0..n)
+                .map(|i| StackTraceElement {
+                    location: None,
+                    desc: i.to_string(),
+                })
+                .collect()
+        };
+        let descs = |f: &[StackTraceElement]| f.iter().map(|e| e.desc.clone()).collect::<Vec<_>>();
+
+        for (n, max, want) in [
+            (5, 0, vec!["0", "1", "2", "3", "4"]),
+            (5, 5, vec!["0", "1", "2", "3", "4"]),
+            (5, 3, vec!["0", "...", "3", "4"]),
+            (5, 4, vec!["0", "1", "...", "3", "4"]),
+            (5, 1, vec!["...", "4"]),
+        ] {
+            let mut f = frames(n);
+            crop_trace(&mut f, max);
+            assert_eq!(descs(&f), want, "n={n} max={max}");
+        }
     }
 }

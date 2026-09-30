@@ -113,7 +113,7 @@ impl NativeCallbackHandler for GoNativeCallbackHandler {
 /// `cb` must be a valid function pointer.
 #[no_mangle]
 pub unsafe extern "C" fn jrsonnet_go_native_callback(
-    vm: &VM,
+    vm: &mut VM,
     name: GoStr,
     cb: GoNativeCallback,
     ctx: usize,
@@ -131,5 +131,6 @@ pub unsafe extern "C" fn jrsonnet_go_native_callback(
             #[allow(deprecated)]
             NativeCallback::new(params, GoNativeCallbackHandler { ctx, cb }),
         );
+        vm.flush_values();
     })
 }

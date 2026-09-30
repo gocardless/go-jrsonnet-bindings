@@ -30,14 +30,24 @@ pub const JRSONNET_GO_MODE_STREAM: c_int = 2;
 /// manifests the result in `mode`, a `JRSONNET_GO_MODE_*` constant. A file
 /// path is used byte for byte. A snippet and its filename are decoded as
 /// go-jsonnet does (see [`GoStr::as_str_lossy`]).
+///
+/// An error flushes the values cached for files (see [`VM::flush_values`]).
 #[no_mangle]
 pub extern "C" fn jrsonnet_go_evaluate(
-    vm: &VM,
+    vm: &mut VM,
     file: bool,
     filename: GoStr,
     snippet: GoStr,
     mode: c_int,
 ) -> GoResult {
+    let result = evaluate(vm, file, filename, snippet, mode);
+    if result.error != 0 {
+        guard(drop, || vm.flush_values());
+    }
+    result
+}
+
+fn evaluate(vm: &VM, file: bool, filename: GoStr, snippet: GoStr, mode: c_int) -> GoResult {
     guard(GoResult::panic, || {
         let _guard = vm.state.enter();
         let val = if file {

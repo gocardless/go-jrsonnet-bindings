@@ -6,15 +6,16 @@ pub mod result;
 pub mod settings;
 pub mod vars_tlas;
 
-use std::path::PathBuf;
+use std::{path::PathBuf, rc::Rc};
 
 use jrsonnet_evaluator::{
     manifest::{JsonFormat, ManifestFormat},
     rustc_hash::FxHashMap,
     tla::TlaArg,
     trace::{CompactFormat, PathResolver, TraceFormat},
-    FileImportResolver, IStr, ImportResolver, State,
+    AsPathLike, FileImportResolver, IStr, ImportResolver, Result, SourcePath, State,
 };
+use jrsonnet_gcmodule::Acyclic;
 use jrsonnet_stdlib::ContextInitializer;
 
 use crate::{
@@ -24,6 +25,7 @@ use crate::{
 };
 
 pub struct VM {
+    /// Caches the value of every file it evaluates (see [`VM::flush_values`]).
     pub(crate) state: State,
     /// The context initializer in `state`. Clones share settings, so ext vars
     /// and natives added here reach `state`.
@@ -32,6 +34,8 @@ pub struct VM {
     pub(crate) trace_format: Box<dyn TraceFormat>,
     pub(crate) tla_args: FxHashMap<IStr, TlaArg>,
     pub(crate) trailing_newline: bool,
+    /// The import resolver in `state`.
+    resolver: SharedResolver,
 }
 
 /// Create a VM that imports from the file system, or return null if that
@@ -66,18 +70,54 @@ pub unsafe extern "C" fn jrsonnet_go_vm_make_with_importer(
 
 fn make_vm(resolver: impl ImportResolver) -> *mut VM {
     let ctx = ContextInitializer::new(PathResolver::new_cwd_fallback());
-    let mut state = State::builder();
-    state
-        .import_resolver(resolver)
-        .context_initializer(ctx.clone());
+    let resolver = SharedResolver(Rc::new(resolver));
     Box::into_raw(Box::new(VM {
-        state: state.build(),
+        state: build_state(&ctx, &resolver),
         ctx,
         manifest_format: Box::new(JsonFormat::default()),
         trace_format: Box::new(CompactFormat::default()),
         tla_args: FxHashMap::default(),
         trailing_newline: true,
+        resolver,
     }))
+}
+
+impl VM {
+    /// Drops the values cached for the files evaluated so far, like
+    /// go-jsonnet's `flushValueCache`. jrsonnet caches every file's value in
+    /// `State` and can't clear that cache, so this builds a new `State`. It
+    /// keeps the resolver and what the resolver has cached.
+    ///
+    /// Call it when a file's value may have changed: after ext vars or native
+    /// functions change, and after an error, as jrsonnet may leave a failed
+    /// file marked as being evaluated.
+    pub(crate) fn flush_values(&mut self) {
+        self.state = build_state(&self.ctx, &self.resolver);
+    }
+}
+
+fn build_state(ctx: &ContextInitializer, resolver: &SharedResolver) -> State {
+    let mut state = State::builder();
+    state
+        .import_resolver(resolver.clone())
+        .context_initializer(ctx.clone());
+    state.build()
+}
+
+/// An import resolver shared by the successive `State`s of a VM.
+#[derive(Acyclic, Clone)]
+struct SharedResolver(Rc<dyn ImportResolver>);
+
+impl ImportResolver for SharedResolver {
+    fn resolve_from(&self, from: &SourcePath, path: &dyn AsPathLike) -> Result<SourcePath> {
+        self.0.resolve_from(from, path)
+    }
+    fn resolve_from_default(&self, path: &dyn AsPathLike) -> Result<SourcePath> {
+        self.0.resolve_from_default(path)
+    }
+    fn load_file_contents(&self, resolved: &SourcePath) -> Result<Vec<u8>> {
+        self.0.load_file_contents(resolved)
+    }
 }
 
 /// Splits NUL-terminated paths and reverses them, as jrsonnet searches them

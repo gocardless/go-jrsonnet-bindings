@@ -7,6 +7,9 @@
 //! so a bad one fails as it does in go-jsonnet.
 //!
 //! Code is parsed when first used, so binding it can't fail.
+//!
+//! As in go-jsonnet, setting an ext var flushes the values cached for files.
+//! Setting a TLA doesn't, as TLAs only apply to the top-level value.
 
 use jrsonnet_evaluator::tla::TlaArg;
 
@@ -14,20 +17,22 @@ use crate::{input::GoStr, result::guard, VM};
 
 /// Bind an external string variable.
 #[no_mangle]
-pub extern "C" fn jrsonnet_go_ext_var(vm: &VM, name: GoStr, value: GoStr) {
+pub extern "C" fn jrsonnet_go_ext_var(vm: &mut VM, name: GoStr, value: GoStr) {
     guard(drop, || {
         let Some(name) = name.as_str() else { return };
         vm.ctx
             .add_ext_str(name.into(), (&*value.as_str_lossy()).into());
+        vm.flush_values();
     })
 }
 
 /// Bind an external code variable.
 #[no_mangle]
-pub extern "C" fn jrsonnet_go_ext_code(vm: &VM, name: GoStr, code: GoStr) {
+pub extern "C" fn jrsonnet_go_ext_code(vm: &mut VM, name: GoStr, code: GoStr) {
     guard(drop, || {
         let Some(name) = name.as_str() else { return };
         let _ = vm.ctx.add_ext_code(name, code.as_str_lossy());
+        vm.flush_values();
     })
 }
 

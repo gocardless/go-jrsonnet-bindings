@@ -6,59 +6,22 @@ pub mod result;
 pub mod settings;
 pub mod vars_tlas;
 
-use std::{any::Any, cell::RefCell, path::PathBuf, rc::Rc};
+use std::path::PathBuf;
 
 use jrsonnet_evaluator::{
     manifest::{JsonFormat, ManifestFormat},
     rustc_hash::FxHashMap,
     tla::TlaArg,
     trace::{CompactFormat, PathResolver, TraceFormat},
-    AsPathLike, FileImportResolver, IStr, ImportResolver, Result, State,
+    FileImportResolver, IStr, ImportResolver, State,
 };
-use jrsonnet_gcmodule::Acyclic;
-use jrsonnet_ir::SourcePath;
 use jrsonnet_stdlib::ContextInitializer;
 
-use crate::result::guard;
-
-// ---------------------------------------------------------------------------
-// VMImportResolver: mutable wrapper so jpath_add / import_callback can swap it
-// ---------------------------------------------------------------------------
-
-#[derive(Acyclic)]
-pub(crate) struct VMImportResolver {
-    pub(crate) inner: RefCell<Rc<dyn ImportResolver>>,
-}
-
-impl VMImportResolver {
-    fn new(value: impl ImportResolver) -> Self {
-        Self {
-            inner: RefCell::new(Rc::new(value)),
-        }
-    }
-}
-
-impl ImportResolver for VMImportResolver {
-    fn load_file_contents(&self, resolved: &SourcePath) -> Result<Vec<u8>> {
-        self.inner.borrow().load_file_contents(resolved)
-    }
-
-    fn resolve_from(
-        &self,
-        from: &SourcePath,
-        path: &dyn AsPathLike,
-    ) -> Result<SourcePath> {
-        self.inner.borrow().resolve_from(from, path)
-    }
-
-    fn resolve_from_default(&self, path: &dyn AsPathLike) -> Result<SourcePath> {
-        self.inner.borrow().resolve_from_default(path)
-    }
-}
-
-// ---------------------------------------------------------------------------
-// VM struct
-// ---------------------------------------------------------------------------
+use crate::{
+    import::{GoImportCallback, GoImportResolver},
+    input::{path_from_bytes, GoStr},
+    result::guard,
+};
 
 pub struct VM {
     pub(crate) state: State,
@@ -71,52 +34,44 @@ pub struct VM {
     pub(crate) trailing_newline: bool,
 }
 
-impl VM {
-    pub(crate) fn replace_import_resolver(&self, resolver: impl ImportResolver) {
-        *(self.state.import_resolver() as &dyn Any)
-            .downcast_ref::<VMImportResolver>()
-            .expect("valid resolver ty")
-            .inner
-            .borrow_mut() = Rc::new(resolver);
-    }
-
-    pub(crate) fn add_jpath(&self, path: PathBuf) {
-        let ir = self.state.import_resolver();
-        let vmi = (ir as &dyn Any)
-            .downcast_ref::<VMImportResolver>()
-            .expect("valid resolver ty");
-        let mut rc = vmi.inner.borrow_mut();
-        // Rc::get_mut gives us &mut dyn ImportResolver when refcount == 1
-        let resolver_mut = Rc::get_mut(&mut *rc)
-            .expect("import resolver has multiple references");
-        // Cast to &mut dyn Any to downcast to concrete FileImportResolver
-        let any = resolver_mut as &mut dyn Any;
-        any.downcast_mut::<FileImportResolver>()
-            .expect("jpaths are not compatible with callback imports")
-            .add_jpath(path);
-    }
-}
-
-// ---------------------------------------------------------------------------
-// VM lifecycle
-// ---------------------------------------------------------------------------
-
-/// Create a new Jsonnet VM, or return null if that panics. Destroy it with
-/// `jrsonnet_go_vm_destroy`.
+/// Create a VM that imports from the file system, or return null if that
+/// panics. Destroy it with `jrsonnet_go_vm_destroy`.
+///
+/// `jpaths` holds library paths, each followed by a NUL byte, used byte for
+/// byte. As in go-jsonnet, a file in a later path wins.
 #[no_mangle]
-pub extern "C" fn jrsonnet_go_vm_make() -> *mut VM {
-    guard(|_| std::ptr::null_mut(), make_vm)
+pub extern "C" fn jrsonnet_go_vm_make(jpaths: GoStr) -> *mut VM {
+    guard(
+        |_| std::ptr::null_mut(),
+        || make_vm(FileImportResolver::new(split_jpaths(jpaths))),
+    )
 }
 
-fn make_vm() -> *mut VM {
+/// Create a VM whose imports `cb` resolves, or return null if that panics.
+/// Destroy it with `jrsonnet_go_vm_destroy`.
+///
+/// # Safety
+///
+/// `cb` must be a valid function pointer. `ctx` is passed through as-is.
+#[no_mangle]
+pub unsafe extern "C" fn jrsonnet_go_vm_make_with_importer(
+    cb: GoImportCallback,
+    ctx: usize,
+) -> *mut VM {
+    guard(
+        |_| std::ptr::null_mut(),
+        || make_vm(GoImportResolver::new(cb, ctx)),
+    )
+}
+
+fn make_vm(resolver: impl ImportResolver) -> *mut VM {
     let ctx = ContextInitializer::new(PathResolver::new_cwd_fallback());
     let mut state = State::builder();
     state
-        .import_resolver(VMImportResolver::new(FileImportResolver::default()))
+        .import_resolver(resolver)
         .context_initializer(ctx.clone());
-    let state = state.build();
     Box::into_raw(Box::new(VM {
-        state,
+        state: state.build(),
         ctx,
         manifest_format: Box::new(JsonFormat::default()),
         trace_format: Box::new(CompactFormat::default()),
@@ -125,11 +80,25 @@ fn make_vm() -> *mut VM {
     }))
 }
 
-/// Destroy a VM previously created by `jrsonnet_go_vm_make`.
+/// Splits NUL-terminated paths and reverses them, as jrsonnet searches them
+/// in order and go-jsonnet from the last one.
+fn split_jpaths(jpaths: GoStr) -> Vec<PathBuf> {
+    let mut out = Vec::new();
+    let mut rest = jpaths.as_bytes();
+    while let Some(end) = rest.iter().position(|b| *b == 0) {
+        out.push(path_from_bytes(&rest[..end]).to_owned());
+        rest = &rest[end + 1..];
+    }
+    out.reverse();
+    out
+}
+
+/// Destroy a VM previously created by `jrsonnet_go_vm_make` or
+/// `jrsonnet_go_vm_make_with_importer`.
 ///
 /// # Safety
 ///
-/// `vm` must be a valid pointer returned by `jrsonnet_go_vm_make`.
+/// `vm` must be a pointer returned by one of those, not yet destroyed.
 #[no_mangle]
 pub unsafe extern "C" fn jrsonnet_go_vm_destroy(vm: *mut VM) {
     if !vm.is_null() {

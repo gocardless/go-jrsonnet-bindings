@@ -40,11 +40,17 @@ impl<'a> GoStr<'a> {
 
     /// The string as a path, byte for byte.
     pub(crate) fn as_path(&self) -> &Path {
-        Path::new(OsStr::from_bytes(self.as_bytes()))
+        path_from_bytes(self.as_bytes())
     }
 }
 
-fn decode_like_go(bytes: &[u8]) -> Cow<'_, str> {
+/// A path, byte for byte.
+pub(crate) fn path_from_bytes(bytes: &[u8]) -> &Path {
+    Path::new(OsStr::from_bytes(bytes))
+}
+
+/// Decodes `bytes` like [`GoStr::as_str_lossy`].
+pub(crate) fn decode_like_go(bytes: &[u8]) -> Cow<'_, str> {
     if let Ok(s) = std::str::from_utf8(bytes) {
         return Cow::Borrowed(s);
     }

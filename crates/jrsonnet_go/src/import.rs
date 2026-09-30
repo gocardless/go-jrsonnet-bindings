@@ -1,10 +1,14 @@
+//! Import resolution through a Go callback.
+
 use std::{
     cell::RefCell,
     collections::HashMap,
     env::current_dir,
-    ffi::{c_void, CStr, CString},
-    os::raw::{c_char, c_int},
-    path::PathBuf,
+    ffi::c_void,
+    os::{
+        raw::{c_char, c_int},
+        unix::ffi::OsStrExt,
+    },
 };
 
 use jrsonnet_evaluator::{
@@ -15,45 +19,52 @@ use jrsonnet_evaluator::{
 use jrsonnet_gcmodule::Acyclic;
 use jrsonnet_ir::{SourceDirectory, SourceFile, SourcePath};
 
-use crate::{result::guard, VM};
+use crate::input::{decode_like_go, path_from_bytes};
 
-/// Go import callback function pointer type.
+/// Go import callback.
 ///
-/// - `ctx`: opaque user context
-/// - `base`: base directory (NUL-terminated)
-/// - `rel`: relative import path (NUL-terminated)
-/// - `found_here`: output: resolved path (allocated by callback, freed by caller via `free()`)
-/// - `buf`: output: file content buffer (allocated by callback, freed by caller via `free()`)
-/// - `buflen`: output: length of `buf`
+/// - `ctx` is the `cgo.Handle` of the Go function.
+/// - `base` is the directory of the importing file, and `rel` the imported
+///   path.
+/// - The callback sets `found_here` to the resolved path and `buf` to the
+///   contents, or `buf` to the error message.
 ///
-/// Returns 0 on error (buf/buflen contain error message), 1 on success.
-// `ctx` is an opaque Go `cgo.Handle` value (an integer), passed through FFI as a
-// `usize` rather than a raw pointer: there is no C-heap allocation to manage,
-// and the resolver simply hands the same integer back to the callback.
+/// Paths are passed byte for byte. The callback allocates its outputs with
+/// `malloc`, and Rust frees them. Returns 0 on success, 1 on error.
 pub type GoImportCallback = unsafe extern "C" fn(
     ctx: usize,
     base: *const c_char,
+    base_len: usize,
     rel: *const c_char,
+    rel_len: usize,
     found_here: *mut *mut c_char,
+    found_here_len: *mut usize,
     buf: *mut *mut c_char,
-    buflen: *mut usize,
+    buf_len: *mut usize,
 ) -> c_int;
 
-/// Import resolver that delegates to a Go callback.
+/// Resolves imports through a Go callback. `ctx` is a `cgo.Handle` value,
+/// passed back to the callback as is.
 #[derive(Acyclic)]
-struct GoImportResolver {
-    #[allow(dead_code)]
+pub(crate) struct GoImportResolver {
     cb: GoImportCallback,
     ctx: usize,
-    out: RefCell<HashMap<SourcePath, Vec<u8>>>,
+    /// Contents by resolved path, filled in by `resolve_from`.
+    files: RefCell<HashMap<SourcePath, Vec<u8>>>,
+}
+
+impl GoImportResolver {
+    pub(crate) fn new(cb: GoImportCallback, ctx: usize) -> Self {
+        Self {
+            cb,
+            ctx,
+            files: RefCell::default(),
+        }
+    }
 }
 
 impl ImportResolver for GoImportResolver {
-    fn resolve_from(
-        &self,
-        from: &SourcePath,
-        path: &dyn AsPathLike,
-    ) -> Result<SourcePath> {
+    fn resolve_from(&self, from: &SourcePath, path: &dyn AsPathLike) -> Result<SourcePath> {
         let base = if let Some(p) = from.downcast_ref::<SourceFile>() {
             let mut o = p.path().to_owned();
             o.pop();
@@ -65,112 +76,68 @@ impl ImportResolver for GoImportResolver {
         } else {
             bail!(ImportIo("can't resolve this path".to_string()));
         };
-
-        let base_cstr = CString::new(base.to_string_lossy().as_bytes())
-            .unwrap_or_else(|_| CString::new(".").unwrap());
-
-        let rel = path.as_path();
-        let rel_cstr = match rel {
-            ResolvePath::Str(s) => CString::new(s).unwrap(),
-            ResolvePath::Path(p) => CString::new(p.to_string_lossy().as_bytes())
-                .unwrap_or_else(|_| CString::new("").unwrap()),
+        let base = base.as_os_str().as_bytes();
+        let rel = match path.as_path() {
+            ResolvePath::Str(s) => s.as_bytes(),
+            ResolvePath::Path(p) => p.as_os_str().as_bytes(),
         };
 
         let mut found_here: *mut c_char = std::ptr::null_mut();
+        let mut found_here_len: usize = 0;
         let mut buf: *mut c_char = std::ptr::null_mut();
         let mut buf_len: usize = 0;
-
-        let success = unsafe {
+        // SAFETY: Go registered `cb` with this `ctx`, and the inputs outlive the
+        // call.
+        let status = unsafe {
             (self.cb)(
                 self.ctx,
-                base_cstr.as_ptr(),
-                rel_cstr.as_ptr(),
+                base.as_ptr().cast(),
+                base.len(),
+                rel.as_ptr().cast(),
+                rel.len(),
                 &mut found_here,
+                &mut found_here_len,
                 &mut buf,
                 &mut buf_len,
             )
         };
+        let found_here = take_malloced(found_here, found_here_len);
+        let buf = take_malloced(buf, buf_len);
 
-        // Copy buf contents before freeing
-        let buf_data = if !buf.is_null() && buf_len > 0 {
-            let slice = unsafe { std::slice::from_raw_parts(buf as *const u8, buf_len) };
-            let v = slice.to_vec();
-            unsafe { libc_free(buf as *mut c_void) };
-            v
-        } else {
-            if !buf.is_null() {
-                unsafe { libc_free(buf as *mut c_void) };
-            }
-            Vec::new()
-        };
-
-        if success == 0 {
-            // Error: buf_data contains the error message
-            let result = String::from_utf8(buf_data)
-                .unwrap_or_else(|_| "import callback error (invalid utf-8)".to_string());
-            if !found_here.is_null() {
-                unsafe { libc_free(found_here as *mut c_void) };
-            }
-            bail!(ImportCallbackError(result));
+        if status != 0 {
+            bail!(ImportCallbackError(decode_like_go(&buf).into_owned()));
         }
 
-        // Success: found_here is the resolved path
-        let found_here_str = if !found_here.is_null() {
-            let s = unsafe { CStr::from_ptr(found_here) }
-                .to_str()
-                .unwrap_or("")
-                .to_owned();
-            unsafe { libc_free(found_here as *mut c_void) };
-            s
-        } else {
-            String::new()
-        };
-
-        let resolved = SourcePath::new(SourceFile::new(PathBuf::from(&found_here_str)));
-
-        let mut out = self.out.borrow_mut();
-        if !out.contains_key(&resolved) {
-            out.insert(resolved.clone(), buf_data);
-        }
-
+        let resolved = SourcePath::new(SourceFile::new(path_from_bytes(&found_here).to_owned()));
+        // Like go-jsonnet, the first contents seen for a path win.
+        self.files
+            .borrow_mut()
+            .entry(resolved.clone())
+            .or_insert(buf);
         Ok(resolved)
     }
 
     fn load_file_contents(&self, resolved: &SourcePath) -> Result<Vec<u8>> {
-        Ok(self
-            .out
-            .borrow()
-            .get(resolved)
-            .expect("file should have been cached during resolve")
-            .clone())
+        match self.files.borrow().get(resolved) {
+            Some(contents) => Ok(contents.clone()),
+            None => bail!(ImportIo(format!("{resolved} was not resolved"))),
+        }
     }
 }
 
 extern "C" {
-    // We use libc free to free memory allocated by Go's C.CString (which uses malloc)
+    // Frees what the Go callbacks allocate with C.CBytes.
     pub(crate) fn free(ptr: *mut c_void);
 }
 
-unsafe fn libc_free(ptr: *mut c_void) {
-    unsafe { free(ptr) }
-}
-
-/// Set a custom import callback on the VM. This replaces the default file import resolver.
-///
-/// # Safety
-///
-/// `cb` must be a valid function pointer. `ctx` is passed through as-is.
-#[no_mangle]
-pub unsafe extern "C" fn jrsonnet_go_import_callback(
-    vm: &VM,
-    cb: GoImportCallback,
-    ctx: usize,
-) {
-    guard(drop, || {
-        vm.replace_import_resolver(GoImportResolver {
-            cb,
-            ctx,
-            out: RefCell::new(HashMap::new()),
-        });
-    })
+/// Copies and frees a buffer a Go callback allocated with `malloc`.
+fn take_malloced(buf: *mut c_char, len: usize) -> Vec<u8> {
+    if buf.is_null() {
+        return Vec::new();
+    }
+    // SAFETY: Go allocated `len` bytes at `buf` with malloc and handed them
+    // over.
+    let data = unsafe { std::slice::from_raw_parts(buf.cast::<u8>(), len) }.to_vec();
+    unsafe { free(buf.cast::<c_void>()) };
+    data
 }

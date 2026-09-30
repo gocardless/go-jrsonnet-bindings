@@ -12,7 +12,8 @@ include = [
 ]
 # GoStr has the layout of cgo's _GoString_, which cgo defines in every
 # preamble. cbindgen then warns that it can't find GoStr; that's expected.
-exclude = ["GoStr"]
+# free is libc's, declared in Rust to free what Go allocates.
+exclude = ["GoStr", "free"]
 
 [export.rename]
 "GoResult" = "GoResult"

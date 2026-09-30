@@ -6,7 +6,7 @@ use jrsonnet_evaluator::{
     trace::CompactFormat,
 };
 
-use crate::{input::GoStr, result::guard, VM};
+use crate::{result::guard, VM};
 
 /// Set the maximum stack depth.
 #[no_mangle]
@@ -44,13 +44,5 @@ pub extern "C" fn jrsonnet_go_string_output(vm: &mut VM, flag: c_uint) {
 pub extern "C" fn jrsonnet_go_trailing_newline(vm: &mut VM, flag: c_uint) {
     guard(drop, || {
         vm.trailing_newline = flag != 0;
-    })
-}
-
-/// Add a library search path (jpath). The path is used byte for byte.
-#[no_mangle]
-pub extern "C" fn jrsonnet_go_jpath_add(vm: &VM, path: GoStr) {
-    guard(drop, || {
-        vm.add_jpath(path.as_path().to_owned());
     })
 }

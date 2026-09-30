@@ -25,6 +25,28 @@
 typedef struct VM VM;
 
 /**
+ * Go import callback.
+ *
+ * - `ctx` is the `cgo.Handle` of the Go function.
+ * - `base` is the directory of the importing file, and `rel` the imported
+ *   path.
+ * - The callback sets `found_here` to the resolved path and `buf` to the
+ *   contents, or `buf` to the error message.
+ *
+ * Paths are passed byte for byte. The callback allocates its outputs with
+ * `malloc`, and Rust frees them. Returns 0 on success, 1 on error.
+ */
+typedef int (*GoImportCallback)(uintptr_t ctx,
+                                const char *base,
+                                uintptr_t base_len,
+                                const char *rel,
+                                uintptr_t rel_len,
+                                char **found_here,
+                                uintptr_t *found_here_len,
+                                char **buf,
+                                uintptr_t *buf_len);
+
+/**
  * Bytes returned to Go. `error` is 0 on success, 1 for an evaluation error
  * and 2 for a panic, with the message in `data`. Free with
  * `jrsonnet_go_free_result`.
@@ -34,25 +56,6 @@ typedef struct GoResult {
   uintptr_t len;
   int error;
 } GoResult;
-
-/**
- * Go import callback function pointer type.
- *
- * - `ctx`: opaque user context
- * - `base`: base directory (NUL-terminated)
- * - `rel`: relative import path (NUL-terminated)
- * - `found_here`: output: resolved path (allocated by callback, freed by caller via `free()`)
- * - `buf`: output: file content buffer (allocated by callback, freed by caller via `free()`)
- * - `buflen`: output: length of `buf`
- *
- * Returns 0 on error (buf/buflen contain error message), 1 on success.
- */
-typedef int (*GoImportCallback)(uintptr_t ctx,
-                                const char *base,
-                                const char *rel,
-                                char **found_here,
-                                char **buf,
-                                uintptr_t *buflen);
 
 /**
  * Go native function callback type.
@@ -72,17 +75,31 @@ typedef int (*GoNativeCallback)(uintptr_t ctx,
                                 uintptr_t *result_json_len);
 
 /**
- * Create a new Jsonnet VM, or return null if that panics. Destroy it with
- * `jrsonnet_go_vm_destroy`.
+ * Create a VM that imports from the file system, or return null if that
+ * panics. Destroy it with `jrsonnet_go_vm_destroy`.
+ *
+ * `jpaths` holds library paths, each followed by a NUL byte, used byte for
+ * byte. As in go-jsonnet, a file in a later path wins.
  */
- struct VM *jrsonnet_go_vm_make(void);
+ struct VM *jrsonnet_go_vm_make(_GoString_ jpaths);
 
 /**
- * Destroy a VM previously created by `jrsonnet_go_vm_make`.
+ * Create a VM whose imports `cb` resolves, or return null if that panics.
+ * Destroy it with `jrsonnet_go_vm_destroy`.
  *
  * # Safety
  *
- * `vm` must be a valid pointer returned by `jrsonnet_go_vm_make`.
+ * `cb` must be a valid function pointer. `ctx` is passed through as-is.
+ */
+ struct VM *jrsonnet_go_vm_make_with_importer(GoImportCallback cb, uintptr_t ctx);
+
+/**
+ * Destroy a VM previously created by `jrsonnet_go_vm_make` or
+ * `jrsonnet_go_vm_make_with_importer`.
+ *
+ * # Safety
+ *
+ * `vm` must be a pointer returned by one of those, not yet destroyed.
  */
  void jrsonnet_go_vm_destroy(struct VM *vm);
 
@@ -103,17 +120,6 @@ struct GoResult jrsonnet_go_evaluate(const struct VM *vm,
                                      _GoString_ filename,
                                      _GoString_ snippet,
                                      int mode);
-
-extern void free(void *ptr);
-
-/**
- * Set a custom import callback on the VM. This replaces the default file import resolver.
- *
- * # Safety
- *
- * `cb` must be a valid function pointer. `ctx` is passed through as-is.
- */
- void jrsonnet_go_import_callback(const struct VM *vm, GoImportCallback cb, uintptr_t ctx);
 
 /**
  * Register a native function on the VM. A name that isn't valid UTF-8 is
@@ -160,11 +166,6 @@ void jrsonnet_go_native_callback(const struct VM *vm,
  * evaluation output. Defaults to 1 (enabled).
  */
  void jrsonnet_go_trailing_newline(struct VM *vm, unsigned int flag);
-
-/**
- * Add a library search path (jpath). The path is used byte for byte.
- */
- void jrsonnet_go_jpath_add(const struct VM *vm, _GoString_ path);
 
 /**
  * Bind an external string variable.

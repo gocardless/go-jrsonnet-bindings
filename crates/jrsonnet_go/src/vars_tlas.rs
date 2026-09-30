@@ -10,43 +10,53 @@
 
 use jrsonnet_evaluator::tla::TlaArg;
 
-use crate::{input::GoStr, VM};
+use crate::{input::GoStr, result::guard, VM};
 
 /// Bind an external string variable.
 #[no_mangle]
 pub extern "C" fn jrsonnet_go_ext_var(vm: &VM, name: GoStr, value: GoStr) {
-    let Some(name) = name.as_str() else { return };
-    vm.ctx
-        .add_ext_str(name.into(), (&*value.as_str_lossy()).into());
+    guard(drop, || {
+        let Some(name) = name.as_str() else { return };
+        vm.ctx
+            .add_ext_str(name.into(), (&*value.as_str_lossy()).into());
+    })
 }
 
 /// Bind an external code variable.
 #[no_mangle]
 pub extern "C" fn jrsonnet_go_ext_code(vm: &VM, name: GoStr, code: GoStr) {
-    let Some(name) = name.as_str() else { return };
-    let _ = vm.ctx.add_ext_code(name, code.as_str_lossy());
+    guard(drop, || {
+        let Some(name) = name.as_str() else { return };
+        let _ = vm.ctx.add_ext_code(name, code.as_str_lossy());
+    })
 }
 
 /// Bind a top-level string argument.
 #[no_mangle]
 pub extern "C" fn jrsonnet_go_tla_var(vm: &mut VM, name: GoStr, value: GoStr) {
-    vm.tla_args.insert(
-        (&*name.as_str_lossy()).into(),
-        TlaArg::String((&*value.as_str_lossy()).into()),
-    );
+    guard(drop, || {
+        vm.tla_args.insert(
+            (&*name.as_str_lossy()).into(),
+            TlaArg::String((&*value.as_str_lossy()).into()),
+        );
+    })
 }
 
 /// Bind a top-level code argument.
 #[no_mangle]
 pub extern "C" fn jrsonnet_go_tla_code(vm: &mut VM, name: GoStr, code: GoStr) {
-    vm.tla_args.insert(
-        (&*name.as_str_lossy()).into(),
-        TlaArg::InlineCode(code.as_str_lossy().into_owned()),
-    );
+    guard(drop, || {
+        vm.tla_args.insert(
+            (&*name.as_str_lossy()).into(),
+            TlaArg::InlineCode(code.as_str_lossy().into_owned()),
+        );
+    })
 }
 
 /// Clear all TLA arguments.
 #[no_mangle]
 pub extern "C" fn jrsonnet_go_tla_reset(vm: &mut VM) {
-    vm.tla_args.clear();
+    guard(drop, || {
+        vm.tla_args.clear();
+    })
 }

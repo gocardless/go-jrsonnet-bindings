@@ -7,16 +7,31 @@
 #include <stdint.h>
 #include <stdlib.h>
 
+/**
+ * Manifest the value as a whole.
+ */
+#define JRSONNET_GO_MODE_SINGLE 0
+
+/**
+ * Manifest each field of an object on its own.
+ */
+#define JRSONNET_GO_MODE_MULTI 1
+
+/**
+ * Manifest each element of an array on its own.
+ */
+#define JRSONNET_GO_MODE_STREAM 2
+
 typedef struct VM VM;
 
 /**
- * Result type returned across FFI. `error` codes:
- * - 0: success, `data` is the result string (caller must free with `jrsonnet_go_free_string`)
- * - 1: jrsonnet evaluation error, `data` is the error message
- * - 2: Rust panic, `data` is the panic message
+ * Bytes returned to Go. `error` is 0 on success, 1 for an evaluation error
+ * and 2 for a panic, with the message in `data`. Free with
+ * `jrsonnet_go_free_result`.
  */
 typedef struct GoResult {
-  char *data;
+  uint8_t *data;
+  uintptr_t len;
   int error;
 } GoResult;
 
@@ -57,7 +72,8 @@ typedef int (*GoNativeCallback)(uintptr_t ctx,
                                 uintptr_t *result_json_len);
 
 /**
- * Create a new Jsonnet VM. Caller must eventually call `jrsonnet_go_vm_destroy`.
+ * Create a new Jsonnet VM, or return null if that panics. Destroy it with
+ * `jrsonnet_go_vm_destroy`.
  */
  struct VM *jrsonnet_go_vm_make(void);
 
@@ -71,83 +87,22 @@ typedef int (*GoNativeCallback)(uintptr_t ctx,
  void jrsonnet_go_vm_destroy(struct VM *vm);
 
 /**
- * Free a string returned by any `jrsonnet_go_*` function.
- *
- * # Safety
- *
- * `s` must be a pointer returned by a `jrsonnet_go_*` function, or null.
- */
- void jrsonnet_go_free_string(char *s);
-
-/**
  * Run a GC collection cycle.
  */
  void jrsonnet_go_gc_collect(void);
 
 /**
- * Evaluate a Jsonnet code snippet. The filename and code are decoded as
+ * Evaluates the file `filename` if `file` is true, else `snippet`, and
+ * manifests the result in `mode`, a `JRSONNET_GO_MODE_*` constant. A file
+ * path is used byte for byte. A snippet and its filename are decoded as
  * go-jsonnet does (see [`GoStr::as_str_lossy`]).
  */
 
-struct GoResult jrsonnet_go_evaluate_snippet(const struct VM *vm,
-                                             _GoString_ filename,
-                                             _GoString_ snippet);
-
-/**
- * Evaluate a Jsonnet file. The path is used byte for byte.
- */
- struct GoResult jrsonnet_go_evaluate_file(const struct VM *vm, _GoString_ filename);
-
-/**
- * Evaluate a Jsonnet code snippet in multi-file mode. The top-level value must
- * be an object; each field is manifested independently. Success payload is the
- * length-prefixed transport buffer (see module notes), freed with
- * `jrsonnet_go_free_buffer`.
- */
-
-struct GoResult jrsonnet_go_evaluate_snippet_multi(const struct VM *vm,
-                                                   _GoString_ filename,
-                                                   _GoString_ snippet);
-
-/**
- * Evaluate a Jsonnet file in multi-file mode. The top-level value must be an
- * object; each field is manifested independently. Success payload is the
- * length-prefixed transport buffer (see module notes), freed with
- * `jrsonnet_go_free_buffer`.
- */
- struct GoResult jrsonnet_go_evaluate_file_multi(const struct VM *vm, _GoString_ filename);
-
-/**
- * Evaluate a Jsonnet code snippet in stream mode. The top-level value must be
- * an array; each element is manifested independently, preserving order.
- * Success payload is the length-prefixed transport buffer (see module notes),
- * freed with `jrsonnet_go_free_buffer`.
- */
-
-struct GoResult jrsonnet_go_evaluate_snippet_stream(const struct VM *vm,
-                                                    _GoString_ filename,
-                                                    _GoString_ snippet);
-
-/**
- * Evaluate a Jsonnet file in stream mode. The top-level value must be an
- * array; each element is manifested independently, preserving order. Success
- * payload is the length-prefixed transport buffer (see module notes), freed
- * with `jrsonnet_go_free_buffer`.
- */
- struct GoResult jrsonnet_go_evaluate_file_stream(const struct VM *vm, _GoString_ filename);
-
-/**
- * Free a multi-file / stream transport buffer returned by the `*_multi` /
- * `*_stream` evaluation functions on success (error/panic payloads are C
- * strings freed with `jrsonnet_go_free_string`).
- *
- * # Safety
- *
- * `data` must be a pointer returned by a multi/stream evaluation on success,
- * and `len` must be the exact total length of that buffer (its leading
- * `u64`).
- */
- void jrsonnet_go_free_buffer(char *data, uintptr_t len);
+struct GoResult jrsonnet_go_evaluate(const struct VM *vm,
+                                     bool file,
+                                     _GoString_ filename,
+                                     _GoString_ snippet,
+                                     int mode);
 
 extern void free(void *ptr);
 
@@ -175,6 +130,15 @@ void jrsonnet_go_native_callback(const struct VM *vm,
                                  GoNativeCallback cb,
                                  uintptr_t ctx,
                                  _GoString_ params_json);
+
+/**
+ * Free a result returned by any `jrsonnet_go_*` function.
+ *
+ * # Safety
+ *
+ * `result` must come from a `jrsonnet_go_*` function and not be freed yet.
+ */
+ void jrsonnet_go_free_result(struct GoResult result);
 
 /**
  * Set the maximum stack depth.

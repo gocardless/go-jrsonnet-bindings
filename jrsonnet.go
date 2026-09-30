@@ -11,6 +11,7 @@ package jrsonnet
 import "C"
 
 import (
+	"errors"
 	"runtime"
 	"runtime/cgo"
 	"sync"
@@ -78,6 +79,11 @@ func (v *VM) runLoop(opts []Option, started chan<- error) {
 	runtime.LockOSThread()
 
 	v.vm = C.jrsonnet_go_vm_make()
+	if v.vm == nil {
+		started <- errors.New("jrsonnet: failed to create the VM")
+		close(v.finished)
+		return
+	}
 
 	var startErr error
 	for _, opt := range opts {

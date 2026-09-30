@@ -2,40 +2,30 @@ package jrsonnet
 
 /*
 #include "jrsonnet_go.h"
-#include <stdlib.h>
 */
 import "C"
 
 import (
-	"bytes"
 	"encoding/binary"
 	"unsafe"
 )
 
 // EvaluateSnippet evaluates a string of Jsonnet code and returns the result as JSON.
-func (v *VM) EvaluateSnippet(filename, snippet string) (string, error) {
-	var result C.struct_GoResult
-	err := v.withThread(func() {
-		result = C.jrsonnet_go_evaluate_snippet(v.vm, filename, snippet)
+func (v *VM) EvaluateSnippet(filename, snippet string) (out string, err error) {
+	err = v.evaluate(false, filename, snippet, C.JRSONNET_GO_MODE_SINGLE, func(b []byte) error {
+		out = string(b)
+		return nil
 	})
-	if err != nil {
-		return "", err
-	}
-
-	return goResultToString(result)
+	return out, err
 }
 
 // EvaluateFile evaluates a Jsonnet file and returns the result as JSON.
-func (v *VM) EvaluateFile(filename string) (string, error) {
-	var result C.struct_GoResult
-	err := v.withThread(func() {
-		result = C.jrsonnet_go_evaluate_file(v.vm, filename)
+func (v *VM) EvaluateFile(filename string) (out string, err error) {
+	err = v.evaluate(true, filename, "", C.JRSONNET_GO_MODE_SINGLE, func(b []byte) error {
+		out = string(b)
+		return nil
 	})
-	if err != nil {
-		return "", err
-	}
-
-	return goResultToString(result)
+	return out, err
 }
 
 // EvaluateSnippetMulti evaluates a string of Jsonnet code in multi-file mode.
@@ -43,15 +33,7 @@ func (v *VM) EvaluateFile(filename string) (string, error) {
 // independently and returned as a map from field name to that field's output.
 // A non-object top-level value returns an evaluation error.
 func (v *VM) EvaluateSnippetMulti(filename, snippet string) (map[string]string, error) {
-	var result C.struct_GoResult
-	err := v.withThread(func() {
-		result = C.jrsonnet_go_evaluate_snippet_multi(v.vm, filename, snippet)
-	})
-	if err != nil {
-		return nil, err
-	}
-
-	return goResultToStringMap(result)
+	return v.evaluateMulti(false, filename, snippet)
 }
 
 // EvaluateFileMulti evaluates a Jsonnet file in multi-file mode. The file's
@@ -59,15 +41,7 @@ func (v *VM) EvaluateSnippetMulti(filename, snippet string) (map[string]string, 
 // returned as a map from field name to that field's output. A non-object
 // top-level value returns an evaluation error.
 func (v *VM) EvaluateFileMulti(filename string) (map[string]string, error) {
-	var result C.struct_GoResult
-	err := v.withThread(func() {
-		result = C.jrsonnet_go_evaluate_file_multi(v.vm, filename)
-	})
-	if err != nil {
-		return nil, err
-	}
-
-	return goResultToStringMap(result)
+	return v.evaluateMulti(true, filename, "")
 }
 
 // EvaluateSnippetStream evaluates a string of Jsonnet code in stream mode. The
@@ -75,15 +49,7 @@ func (v *VM) EvaluateFileMulti(filename string) (map[string]string, error) {
 // independently and returned as an ordered slice (order preserved). A
 // non-array top-level value returns an evaluation error.
 func (v *VM) EvaluateSnippetStream(filename, snippet string) ([]string, error) {
-	var result C.struct_GoResult
-	err := v.withThread(func() {
-		result = C.jrsonnet_go_evaluate_snippet_stream(v.vm, filename, snippet)
-	})
-	if err != nil {
-		return nil, err
-	}
-
-	return goResultToStringSlice(result)
+	return v.evaluateStream(false, filename, snippet)
 }
 
 // EvaluateFileStream evaluates a Jsonnet file in stream mode. The file's
@@ -91,138 +57,76 @@ func (v *VM) EvaluateSnippetStream(filename, snippet string) ([]string, error) {
 // and returned as an ordered slice (order preserved). A non-array top-level
 // value returns an evaluation error.
 func (v *VM) EvaluateFileStream(filename string) ([]string, error) {
-	var result C.struct_GoResult
+	return v.evaluateStream(true, filename, "")
+}
+
+func (v *VM) evaluateMulti(file bool, filename, snippet string) (out map[string]string, err error) {
+	err = v.evaluate(file, filename, snippet, C.JRSONNET_GO_MODE_MULTI, func(b []byte) error {
+		entries, err := decodeEntries(b)
+		if err != nil {
+			return err
+		}
+		if len(entries)%2 != 0 {
+			return errMalformedResult
+		}
+		out = make(map[string]string, len(entries)/2)
+		for i := 0; i < len(entries); i += 2 {
+			out[entries[i]] = entries[i+1]
+		}
+		return nil
+	})
+	return out, err
+}
+
+func (v *VM) evaluateStream(file bool, filename, snippet string) (out []string, err error) {
+	err = v.evaluate(file, filename, snippet, C.JRSONNET_GO_MODE_STREAM, func(b []byte) error {
+		out, err = decodeEntries(b)
+		return err
+	})
+	return out, err
+}
+
+// evaluate evaluates the file filename if file is true, else snippet, in the
+// given mode, and passes a successful result to decode. The bytes are only
+// valid until decode returns.
+func (v *VM) evaluate(file bool, filename, snippet string, mode C.int, decode func([]byte) error) error {
+	var r C.struct_GoResult
 	err := v.withThread(func() {
-		result = C.jrsonnet_go_evaluate_file_stream(v.vm, filename)
+		r = C.jrsonnet_go_evaluate(v.vm, C.bool(file), filename, snippet, mode)
 	})
 	if err != nil {
-		return nil, err
+		return err
 	}
+	defer C.jrsonnet_go_free_result(r)
 
-	return goResultToStringSlice(result)
-}
-
-func goResultToString(r C.struct_GoResult) (string, error) {
-	if r.data == nil {
-		return "", &EvaluationError{msg: "nil result"}
-	}
-	defer C.jrsonnet_go_free_string(r.data)
-	s := C.GoString(r.data)
-
+	data := unsafe.Slice((*byte)(r.data), r.len)
 	switch r.error {
 	case 0:
-		return s, nil
-	case 1:
-		return "", &EvaluationError{msg: s}
+		return decode(data)
 	case 2:
-		return "", &PanicError{msg: s}
+		return &PanicError{msg: string(data)}
 	default:
-		return "", &EvaluationError{msg: s}
+		return &EvaluationError{msg: string(data)}
 	}
 }
 
-// readBufferBody handles the success (code 0) transport buffer shared by the
-// multi and stream evaluators: a leading little-endian uint64 total length
-// followed by a NUL-separated body `token\0token\0...\0\0`. It reads the
-// length, copies the whole buffer out in a single copy, frees the Rust
-// allocation via the matching deallocator, and returns the body (header
-// stripped) for pure-Go decoding.
-func readBufferBody(r C.struct_GoResult) []byte {
-	hdr := C.GoBytes(unsafe.Pointer(r.data), 8)
-	total := binary.LittleEndian.Uint64(hdr)
-	buf := C.GoBytes(unsafe.Pointer(r.data), C.int(total))
-	C.jrsonnet_go_free_buffer(r.data, C.size_t(total))
-	return buf[8:]
-}
+var errMalformedResult = &EvaluationError{msg: "jrsonnet: malformed multi or stream result"}
 
-// goResultToStringMap decodes a multi-file evaluation result. Error (code 1)
-// and panic (code 2) payloads are NUL-terminated C strings, freed like any
-// single-value result. A success payload (code 0) is the transport buffer
-// produced by the Rust side (see readBufferBody); Go only decodes it into the
-// map, it never re-manifests.
-func goResultToStringMap(r C.struct_GoResult) (map[string]string, error) {
-	if r.data == nil {
-		return nil, &EvaluationError{msg: "nil result"}
-	}
-
-	switch r.error {
-	case 0:
-		return decodeMulti(readBufferBody(r))
-	case 1:
-		defer C.jrsonnet_go_free_string(r.data)
-		return nil, &EvaluationError{msg: C.GoString(r.data)}
-	case 2:
-		defer C.jrsonnet_go_free_string(r.data)
-		return nil, &PanicError{msg: C.GoString(r.data)}
-	default:
-		defer C.jrsonnet_go_free_string(r.data)
-		return nil, &EvaluationError{msg: C.GoString(r.data)}
-	}
-}
-
-// goResultToStringSlice decodes a stream evaluation result, mirroring
-// goResultToStringMap but yielding an ordered slice. A success payload (code
-// 0) is the shared transport buffer (see readBufferBody).
-func goResultToStringSlice(r C.struct_GoResult) ([]string, error) {
-	if r.data == nil {
-		return nil, &EvaluationError{msg: "nil result"}
-	}
-
-	switch r.error {
-	case 0:
-		return decodeStream(readBufferBody(r)), nil
-	case 1:
-		defer C.jrsonnet_go_free_string(r.data)
-		return nil, &EvaluationError{msg: C.GoString(r.data)}
-	case 2:
-		defer C.jrsonnet_go_free_string(r.data)
-		return nil, &PanicError{msg: C.GoString(r.data)}
-	default:
-		defer C.jrsonnet_go_free_string(r.data)
-		return nil, &EvaluationError{msg: C.GoString(r.data)}
-	}
-}
-
-// decodeMulti parses the NUL-separated body of the multi transport buffer (the
-// header has already been stripped by the caller) into a map. The body is
-// `key\0value\0...\0\0`; splitting on NUL yields key/value tokens terminated by
-// the empty key from the `\0\0` terminator. An empty key marks the end; an
-// empty value is valid (e.g. a field manifesting to the empty string).
-func decodeMulti(body []byte) (map[string]string, error) {
-	tokens := bytes.Split(body, []byte{0})
-	out := make(map[string]string)
-	for i := 0; i < len(tokens); i += 2 {
-		if len(tokens[i]) == 0 { // empty key == terminator
-			break
+// decodeEntries splits a multi or stream result into its entries. Each entry
+// is a little-endian uint64 length followed by that many bytes.
+func decodeEntries(b []byte) ([]string, error) {
+	var entries []string
+	for len(b) > 0 {
+		if len(b) < 8 {
+			return nil, errMalformedResult
 		}
-		if i+1 >= len(tokens) {
-			return nil, &EvaluationError{msg: "malformed multi result buffer"}
+		n := binary.LittleEndian.Uint64(b)
+		b = b[8:]
+		if n > uint64(len(b)) {
+			return nil, errMalformedResult
 		}
-		out[string(tokens[i])] = string(tokens[i+1])
+		entries = append(entries, string(b[:n]))
+		b = b[n:]
 	}
-	return out, nil
-}
-
-// decodeStream parses the NUL-separated body of the stream transport buffer
-// (the header has already been stripped by the caller) into an ordered slice.
-// The body is `doc\0doc\0...\0\0`; splitting on NUL yields the docs followed by
-// the empty terminator token(s), which are dropped. Order is preserved.
-//
-// Known, accepted limitation (shared with upstream jrsonnet's stream binding):
-// the `\0\0` terminator can't distinguish an empty trailing document, nor `[]`
-// from `[""]`. This is only reachable via WithStringOutput on a stream
-// (non-JSON, nonsensical), so we deliberately don't frame per-token lengths.
-func decodeStream(body []byte) []string {
-	tokens := bytes.Split(body, []byte{0})
-	out := make([]string, 0, len(tokens))
-	for _, tok := range tokens {
-		if len(tok) == 0 { // empty token == terminator
-			break
-		}
-		out = append(out, string(tok))
-	}
-	if len(out) == 0 {
-		return nil
-	}
-	return out
+	return entries, nil
 }

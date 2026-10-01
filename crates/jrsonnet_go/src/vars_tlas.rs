@@ -1,121 +1,48 @@
-use std::{
-    ffi::{CStr, CString},
-    os::raw::{c_char, c_int},
-};
+//! External variables and top-level arguments.
+//!
+//! Names and values are decoded as go-jsonnet sees them (see
+//! [`GoStr::as_str_lossy`]). Ext var names that aren't valid UTF-8 are
+//! ignored instead, because go-jsonnet can never look them up, and decoding
+//! them could collide with a name containing U+FFFD. TLA names are decoded,
+//! so a bad one fails as it does in go-jsonnet.
+//!
+//! Code is parsed when first used, so binding it can't fail.
 
-use jrsonnet_evaluator::{tla::TlaArg, IStr};
+use jrsonnet_evaluator::tla::TlaArg;
 
-use crate::VM;
+use crate::{input::GoStr, VM};
 
 /// Bind an external string variable.
-///
-/// # Safety
-///
-/// `name`, `value` must be NUL-terminated strings.
 #[no_mangle]
-pub unsafe extern "C" fn jrsonnet_go_ext_var(
-    vm: &VM,
-    name: *const c_char,
-    value: *const c_char,
-) -> c_int {
-    let name = unsafe { CStr::from_ptr(name) };
-    let value = unsafe { CStr::from_ptr(value) };
-
-    let any_initializer = vm.state.context_initializer();
-    any_initializer
-        .as_any()
-        .downcast_ref::<jrsonnet_stdlib::ContextInitializer>()
-        .expect("only stdlib context initializer supported")
-        .add_ext_str(
-            name.to_str().expect("name is not utf-8").into(),
-            value.to_str().expect("value is not utf-8").into(),
-        );
-    0
+pub extern "C" fn jrsonnet_go_ext_var(vm: &VM, name: GoStr, value: GoStr) {
+    let Some(name) = name.as_str() else { return };
+    vm.ctx
+        .add_ext_str(name.into(), (&*value.as_str_lossy()).into());
 }
 
-/// Bind an external code variable. Returns 0 on success, 1 on parse error.
-/// On error, writes error message to `err_out` (caller must free with `jrsonnet_go_free_string`).
-///
-/// # Safety
-///
-/// `name`, `code` must be NUL-terminated strings.
-/// `err_out` must be a valid pointer.
+/// Bind an external code variable.
 #[no_mangle]
-pub unsafe extern "C" fn jrsonnet_go_ext_code(
-    vm: &VM,
-    name: *const c_char,
-    code: *const c_char,
-    err_out: *mut *mut c_char,
-) -> c_int {
-    let name = unsafe { CStr::from_ptr(name) };
-    let code = unsafe { CStr::from_ptr(code) };
-
-    let any_initializer = vm.state.context_initializer();
-    let ci = any_initializer
-        .as_any()
-        .downcast_ref::<jrsonnet_stdlib::ContextInitializer>()
-        .expect("only stdlib context initializer supported");
-
-    match ci.add_ext_code(
-        name.to_str().expect("name is not utf-8"),
-        code.to_str().expect("code is not utf-8"),
-    ) {
-        Ok(()) => 0,
-        Err(e) => {
-            let msg = format!("{e}");
-            let cstr = CString::new(msg).unwrap_or_else(|_| CString::new("ext_code error").unwrap());
-            unsafe { *err_out = cstr.into_raw() };
-            1
-        }
-    }
+pub extern "C" fn jrsonnet_go_ext_code(vm: &VM, name: GoStr, code: GoStr) {
+    let Some(name) = name.as_str() else { return };
+    let _ = vm.ctx.add_ext_code(name, code.as_str_lossy());
 }
 
 /// Bind a top-level string argument.
-///
-/// # Safety
-///
-/// `name`, `value` must be NUL-terminated strings.
 #[no_mangle]
-pub unsafe extern "C" fn jrsonnet_go_tla_var(
-    vm: &mut VM,
-    name: *const c_char,
-    value: *const c_char,
-) -> c_int {
-    let name = unsafe { CStr::from_ptr(name) };
-    let value = unsafe { CStr::from_ptr(value) };
-
+pub extern "C" fn jrsonnet_go_tla_var(vm: &mut VM, name: GoStr, value: GoStr) {
     vm.tla_args.insert(
-        name.to_str().expect("name is not utf-8").into(),
-        TlaArg::String(value.to_str().expect("value is not utf-8").into()),
+        (&*name.as_str_lossy()).into(),
+        TlaArg::String((&*value.as_str_lossy()).into()),
     );
-    0
 }
 
-/// Bind a top-level code argument. Returns 0 on success, 1 on error.
-///
-/// # Safety
-///
-/// `name`, `code` must be NUL-terminated strings.
-/// `err_out` must be a valid pointer.
+/// Bind a top-level code argument.
 #[no_mangle]
-pub unsafe extern "C" fn jrsonnet_go_tla_code(
-    vm: &mut VM,
-    name: *const c_char,
-    code: *const c_char,
-    err_out: *mut *mut c_char,
-) -> c_int {
-    let name_str = unsafe { CStr::from_ptr(name) }
-        .to_str()
-        .expect("name is not utf-8");
-    let code_str = unsafe { CStr::from_ptr(code) }
-        .to_str()
-        .expect("code is not utf-8");
-
-    let name_istr: IStr = name_str.into();
-    vm.tla_args
-        .insert(name_istr, TlaArg::InlineCode(code_str.to_owned()));
-    let _ = err_out; // unused on success path
-    0
+pub extern "C" fn jrsonnet_go_tla_code(vm: &mut VM, name: GoStr, code: GoStr) {
+    vm.tla_args.insert(
+        (&*name.as_str_lossy()).into(),
+        TlaArg::InlineCode(code.as_str_lossy().into_owned()),
+    );
 }
 
 /// Clear all TLA arguments.

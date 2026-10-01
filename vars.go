@@ -2,80 +2,41 @@ package jrsonnet
 
 /*
 #include "jrsonnet_go.h"
-#include <stdlib.h>
 */
 import "C"
 
-import "unsafe"
+// Names and values may contain NUL. As in go-jsonnet, each byte that isn't
+// valid UTF-8 becomes U+FFFD, except that an ext var name that isn't valid
+// UTF-8 is ignored, as go-jsonnet can never look it up.
 
 // ExtVar binds an external string variable.
 func (v *VM) ExtVar(key, val string) {
-	cKey := C.CString(key)
-	cVal := C.CString(val)
-	defer C.free(unsafe.Pointer(cKey))
-	defer C.free(unsafe.Pointer(cVal))
-
 	_ = v.withThread(func() {
-		C.jrsonnet_go_ext_var(v.vm, cKey, cVal)
+		C.jrsonnet_go_ext_var(v.vm, key, val)
 	})
 }
 
-// ExtCode binds an external code variable.
-func (v *VM) ExtCode(key, code string) error {
-	cKey := C.CString(key)
-	cCode := C.CString(code)
-	defer C.free(unsafe.Pointer(cKey))
-	defer C.free(unsafe.Pointer(cCode))
-
-	var errMsg *C.char
-	var rc C.int
-
-	err := v.withThread(func() {
-		rc = C.jrsonnet_go_ext_code(v.vm, cKey, cCode, &errMsg)
+// ExtCode binds an external code variable. The code is parsed when it is
+// first used, so the evaluation that uses it returns any syntax error.
+func (v *VM) ExtCode(key, code string) {
+	_ = v.withThread(func() {
+		C.jrsonnet_go_ext_code(v.vm, key, code)
 	})
-	if err != nil {
-		return err
-	}
-	if rc != 0 && errMsg != nil {
-		defer C.jrsonnet_go_free_string(errMsg)
-		return &EvaluationError{msg: C.GoString(errMsg)}
-	}
-	return nil
 }
 
 // TLAVar binds a top-level string argument.
 func (v *VM) TLAVar(key, val string) {
-	cKey := C.CString(key)
-	cVal := C.CString(val)
-	defer C.free(unsafe.Pointer(cKey))
-	defer C.free(unsafe.Pointer(cVal))
-
 	_ = v.withThread(func() {
-		C.jrsonnet_go_tla_var(v.vm, cKey, cVal)
+		C.jrsonnet_go_tla_var(v.vm, key, val)
 	})
 }
 
-// TLACode binds a top-level code argument.
-func (v *VM) TLACode(key, code string) error {
-	cKey := C.CString(key)
-	cCode := C.CString(code)
-	defer C.free(unsafe.Pointer(cKey))
-	defer C.free(unsafe.Pointer(cCode))
-
-	var errMsg *C.char
-	var rc C.int
-
-	err := v.withThread(func() {
-		rc = C.jrsonnet_go_tla_code(v.vm, cKey, cCode, &errMsg)
+// TLACode binds a top-level code argument. The code is parsed when it is
+// first used, so the evaluation that uses it returns any syntax error.
+func (v *VM) TLACode(key, code string) {
+	_ = v.withThread(func() {
+		C.jrsonnet_go_tla_code(v.vm, key, code)
 	})
-	if err != nil {
-		return err
-	}
-	if rc != 0 && errMsg != nil {
-		defer C.jrsonnet_go_free_string(errMsg)
-		return &EvaluationError{msg: C.GoString(errMsg)}
-	}
-	return nil
 }
 
 // TLAReset clears all TLA arguments.

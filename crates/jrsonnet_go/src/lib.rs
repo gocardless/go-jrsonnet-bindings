@@ -1,4 +1,5 @@
 pub mod import;
+pub mod input;
 pub mod native;
 pub mod settings;
 pub mod vars_tlas;
@@ -6,7 +7,7 @@ pub mod vars_tlas;
 use std::{
     any::Any,
     cell::RefCell,
-    ffi::{CStr, CString},
+    ffi::CString,
     os::raw::{c_char, c_int},
     panic::catch_unwind,
     path::PathBuf,
@@ -24,6 +25,8 @@ use jrsonnet_evaluator::{
 use jrsonnet_gcmodule::Acyclic;
 use jrsonnet_ir::SourcePath;
 use jrsonnet_stdlib::ContextInitializer;
+
+use crate::input::GoStr;
 
 // ---------------------------------------------------------------------------
 // GoResult: the return type for all fallible FFI functions
@@ -105,6 +108,9 @@ impl ImportResolver for VMImportResolver {
 
 pub struct VM {
     pub(crate) state: State,
+    /// The context initializer in `state`. Clones share settings, so ext vars
+    /// and natives added here reach `state`.
+    pub(crate) ctx: ContextInitializer,
     pub(crate) manifest_format: Box<dyn ManifestFormat>,
     pub(crate) trace_format: Box<dyn TraceFormat>,
     pub(crate) tla_args: FxHashMap<IStr, TlaArg>,
@@ -144,15 +150,15 @@ impl VM {
 /// Create a new Jsonnet VM. Caller must eventually call `jrsonnet_go_vm_destroy`.
 #[no_mangle]
 pub extern "C" fn jrsonnet_go_vm_make() -> *mut VM {
+    let ctx = ContextInitializer::new(PathResolver::new_cwd_fallback());
     let mut state = State::builder();
     state
         .import_resolver(VMImportResolver::new(FileImportResolver::default()))
-        .context_initializer(ContextInitializer::new(
-            PathResolver::new_cwd_fallback(),
-        ));
+        .context_initializer(ctx.clone());
     let state = state.build();
     Box::into_raw(Box::new(VM {
         state,
+        ctx,
         manifest_format: Box::new(JsonFormat::default()),
         trace_format: Box::new(CompactFormat::default()),
         tla_args: FxHashMap::default(),
@@ -194,29 +200,28 @@ pub extern "C" fn jrsonnet_go_gc_collect() {
 // Evaluate
 // ---------------------------------------------------------------------------
 
+/// Decodes the filename and code as go-jsonnet does (see
+/// [`GoStr::as_str_lossy`]).
+fn evaluate_snippet(vm: &VM, filename: GoStr, snippet: GoStr) -> Result<Val> {
+    vm.state
+        .evaluate_snippet(&*filename.as_str_lossy(), &*snippet.as_str_lossy())
+}
+
+/// Uses the path byte for byte.
+fn evaluate_file(vm: &VM, filename: GoStr) -> Result<Val> {
+    vm.state.import(filename.as_path())
+}
+
 /// Evaluate a Jsonnet code snippet.
-///
-/// # Safety
-///
-/// `filename` and `snippet` must be NUL-terminated strings.
-/// `vm` must be a valid pointer.
 #[no_mangle]
-pub unsafe extern "C" fn jrsonnet_go_evaluate_snippet(
+pub extern "C" fn jrsonnet_go_evaluate_snippet(
     vm: &VM,
-    filename: *const c_char,
-    snippet: *const c_char,
+    filename: GoStr,
+    snippet: GoStr,
 ) -> GoResult {
     let result = catch_unwind(std::panic::AssertUnwindSafe(|| {
-        let filename = unsafe { CStr::from_ptr(filename) }
-            .to_str()
-            .expect("filename is not utf-8");
-        let snippet = unsafe { CStr::from_ptr(snippet) }
-            .to_str()
-            .expect("snippet is not utf-8");
-
         let _guard = vm.state.enter();
-        vm.state
-            .evaluate_snippet(filename, snippet)
+        evaluate_snippet(vm, filename, snippet)
             .and_then(|val| apply_tla(&vm.tla_args, val))
             .and_then(|val| val.manifest(&*vm.manifest_format))
             .map(|s| append_newline(s, vm.trailing_newline))
@@ -237,25 +242,11 @@ pub unsafe extern "C" fn jrsonnet_go_evaluate_snippet(
 }
 
 /// Evaluate a Jsonnet file.
-///
-/// # Safety
-///
-/// `filename` must be a NUL-terminated string.
-/// `vm` must be a valid pointer.
 #[no_mangle]
-pub unsafe extern "C" fn jrsonnet_go_evaluate_file(
-    vm: &VM,
-    filename: *const c_char,
-) -> GoResult {
+pub extern "C" fn jrsonnet_go_evaluate_file(vm: &VM, filename: GoStr) -> GoResult {
     let result = catch_unwind(std::panic::AssertUnwindSafe(|| {
-        let filename = unsafe { CStr::from_ptr(filename) }
-            .to_str()
-            .expect("filename is not utf-8");
-        let path = std::path::Path::new(filename);
-
         let _guard = vm.state.enter();
-        vm.state
-            .import(path)
+        evaluate_file(vm, filename)
             .and_then(|val| apply_tla(&vm.tla_args, val))
             .and_then(|val| val.manifest(&*vm.manifest_format))
             .map(|s| append_newline(s, vm.trailing_newline))
@@ -465,102 +456,44 @@ where
 /// be an object; each field is manifested independently. Success payload is the
 /// length-prefixed transport buffer (see module notes), freed with
 /// `jrsonnet_go_free_buffer`.
-///
-/// # Safety
-///
-/// `filename` and `snippet` must be NUL-terminated strings.
-/// `vm` must be a valid pointer.
 #[no_mangle]
-pub unsafe extern "C" fn jrsonnet_go_evaluate_snippet_multi(
+pub extern "C" fn jrsonnet_go_evaluate_snippet_multi(
     vm: &VM,
-    filename: *const c_char,
-    snippet: *const c_char,
+    filename: GoStr,
+    snippet: GoStr,
 ) -> GoResult {
-    // Do the CStr/to_str conversions inside the caught closure (like the
-    // single-value functions) so non-UTF-8 input yields a graceful panic
-    // (error == 2) instead of unwinding across the FFI boundary.
-    multi_result(vm, || {
-        let filename = unsafe { CStr::from_ptr(filename) }
-            .to_str()
-            .expect("filename is not utf-8");
-        let snippet = unsafe { CStr::from_ptr(snippet) }
-            .to_str()
-            .expect("snippet is not utf-8");
-        vm.state.evaluate_snippet(filename, snippet)
-    })
+    multi_result(vm, || evaluate_snippet(vm, filename, snippet))
 }
 
 /// Evaluate a Jsonnet file in multi-file mode. The top-level value must be an
 /// object; each field is manifested independently. Success payload is the
 /// length-prefixed transport buffer (see module notes), freed with
 /// `jrsonnet_go_free_buffer`.
-///
-/// # Safety
-///
-/// `filename` must be a NUL-terminated string.
-/// `vm` must be a valid pointer.
 #[no_mangle]
-pub unsafe extern "C" fn jrsonnet_go_evaluate_file_multi(
-    vm: &VM,
-    filename: *const c_char,
-) -> GoResult {
-    multi_result(vm, || {
-        let filename = unsafe { CStr::from_ptr(filename) }
-            .to_str()
-            .expect("filename is not utf-8");
-        vm.state.import(std::path::Path::new(filename))
-    })
+pub extern "C" fn jrsonnet_go_evaluate_file_multi(vm: &VM, filename: GoStr) -> GoResult {
+    multi_result(vm, || evaluate_file(vm, filename))
 }
 
 /// Evaluate a Jsonnet code snippet in stream mode. The top-level value must be
 /// an array; each element is manifested independently, preserving order.
 /// Success payload is the length-prefixed transport buffer (see module notes),
 /// freed with `jrsonnet_go_free_buffer`.
-///
-/// # Safety
-///
-/// `filename` and `snippet` must be NUL-terminated strings.
-/// `vm` must be a valid pointer.
 #[no_mangle]
-pub unsafe extern "C" fn jrsonnet_go_evaluate_snippet_stream(
+pub extern "C" fn jrsonnet_go_evaluate_snippet_stream(
     vm: &VM,
-    filename: *const c_char,
-    snippet: *const c_char,
+    filename: GoStr,
+    snippet: GoStr,
 ) -> GoResult {
-    // Do the CStr/to_str conversions inside the caught closure (like the
-    // single-value functions) so non-UTF-8 input yields a graceful panic
-    // (error == 2) instead of unwinding across the FFI boundary.
-    stream_result(vm, || {
-        let filename = unsafe { CStr::from_ptr(filename) }
-            .to_str()
-            .expect("filename is not utf-8");
-        let snippet = unsafe { CStr::from_ptr(snippet) }
-            .to_str()
-            .expect("snippet is not utf-8");
-        vm.state.evaluate_snippet(filename, snippet)
-    })
+    stream_result(vm, || evaluate_snippet(vm, filename, snippet))
 }
 
 /// Evaluate a Jsonnet file in stream mode. The top-level value must be an
 /// array; each element is manifested independently, preserving order. Success
 /// payload is the length-prefixed transport buffer (see module notes), freed
 /// with `jrsonnet_go_free_buffer`.
-///
-/// # Safety
-///
-/// `filename` must be a NUL-terminated string.
-/// `vm` must be a valid pointer.
 #[no_mangle]
-pub unsafe extern "C" fn jrsonnet_go_evaluate_file_stream(
-    vm: &VM,
-    filename: *const c_char,
-) -> GoResult {
-    stream_result(vm, || {
-        let filename = unsafe { CStr::from_ptr(filename) }
-            .to_str()
-            .expect("filename is not utf-8");
-        vm.state.import(std::path::Path::new(filename))
-    })
+pub extern "C" fn jrsonnet_go_evaluate_file_stream(vm: &VM, filename: GoStr) -> GoResult {
+    stream_result(vm, || evaluate_file(vm, filename))
 }
 
 /// Free a multi-file / stream transport buffer returned by the `*_multi` /

@@ -296,9 +296,7 @@ func TestExtCode(t *testing.T) {
 	}
 	defer vm.Close()
 
-	if err := vm.ExtCode("config", `{port: 8080}`); err != nil {
-		t.Fatalf("ExtCode error: %v", err)
-	}
+	vm.ExtCode("config", `{port: 8080}`)
 	result, err := vm.EvaluateSnippet("test.jsonnet", `std.extVar("config").port`)
 	if err != nil {
 		t.Fatalf("EvaluateSnippet error: %v", err)
@@ -334,9 +332,7 @@ func TestTLACode(t *testing.T) {
 	}
 	defer vm.Close()
 
-	if err := vm.TLACode("x", "10 + 20"); err != nil {
-		t.Fatalf("TLACode error: %v", err)
-	}
+	vm.TLACode("x", "10 + 20")
 	result, err := vm.EvaluateSnippet("test.jsonnet", `function(x) {val: x}`)
 	if err != nil {
 		t.Fatalf("EvaluateSnippet error: %v", err)

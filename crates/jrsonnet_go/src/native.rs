@@ -13,10 +13,7 @@ use std::{
 use jrsonnet_evaluator::{
     error::{Error, ErrorKind},
     function::builtin::{NativeCallback, NativeCallbackHandler},
-    val::{ArrValue, StrValue},
-    IStr,
-    NumValue,
-    ObjValue,
+    manifest::JsonFormat,
     Val,
 };
 
@@ -50,73 +47,19 @@ struct GoNativeCallbackHandler {
     cb: GoNativeCallback,
 }
 
-/// Convert a jrsonnet Val to a serde_json::Value.
-fn val_to_json(val: &Val) -> serde_json::Value {
-    match val {
-        Val::Bool(b) => serde_json::Value::Bool(*b),
-        Val::Null => serde_json::Value::Null,
-        Val::Str(s) => serde_json::Value::String(s.clone().into_flat().to_string()),
-        Val::Num(n) => {
-            let f: f64 = n.get();
-            serde_json::Number::from_f64(f)
-                .map(serde_json::Value::Number)
-                .unwrap_or(serde_json::Value::Null)
-        }
-        Val::Arr(a) => {
-            let items: Vec<serde_json::Value> = a
-                .iter()
-                .filter_map(|item| item.ok())
-                .map(|v| val_to_json(&v))
-                .collect();
-            serde_json::Value::Array(items)
-        }
-        Val::Obj(o) => {
-            let mut map = serde_json::Map::new();
-            for field in o.fields() {
-                if let Ok(Some(v)) = o.get(field.clone()) {
-                    map.insert(field.to_string(), val_to_json(&v));
-                }
-            }
-            serde_json::Value::Object(map)
-        }
-        Val::Func(_) => serde_json::Value::Null,
-    }
-}
-
-/// Convert a serde_json::Value back to a jrsonnet Val.
-fn json_to_val(v: &serde_json::Value) -> Val {
-    match v {
-        serde_json::Value::Null => Val::Null,
-        serde_json::Value::Bool(b) => Val::Bool(*b),
-        serde_json::Value::Number(n) => {
-            if let Some(f) = n.as_f64() {
-                NumValue::new(f).map(Val::Num).unwrap_or(Val::Null)
-            } else {
-                Val::Null
-            }
-        }
-        serde_json::Value::String(s) => Val::Str(StrValue::Flat(IStr::from(s.as_str()))),
-        serde_json::Value::Array(arr) => {
-            let vals: Vec<Val> = arr.iter().map(json_to_val).collect();
-            Val::Arr(ArrValue::new(vals))
-        }
-        serde_json::Value::Object(obj) => {
-            let mut o = ObjValue::empty();
-            for (k, v) in obj {
-                let val = json_to_val(v);
-                o.extend_field(IStr::from(k.as_str())).value(val);
-            }
-            Val::Obj(o)
-        }
-    }
-}
-
 impl NativeCallbackHandler for GoNativeCallbackHandler {
     fn call(&self, args: &[Val]) -> std::result::Result<Val, Error> {
-        // Serialize args to JSON
-        let json_args: Vec<serde_json::Value> = args.iter().map(val_to_json).collect();
-        let json_str = serde_json::to_string(&json_args)
-            .map_err(|e| Error::new(ErrorKind::RuntimeError(format!("json serialize: {e}").into())))?;
+        // Like go-jsonnet, fail on a function or on an error anywhere in an
+        // argument.
+        let format = JsonFormat::minify();
+        let mut json_str = String::from("[");
+        for (i, arg) in args.iter().enumerate() {
+            if i > 0 {
+                json_str.push(',');
+            }
+            json_str.push_str(&arg.manifest(&format)?);
+        }
+        json_str.push(']');
 
         let json_cstr = CString::new(json_str.as_bytes())
             .map_err(|e| Error::new(ErrorKind::RuntimeError(format!("CString: {e}").into())))?;
@@ -156,10 +99,8 @@ impl NativeCallbackHandler for GoNativeCallbackHandler {
             )));
         }
 
-        // Parse JSON result back to Val
-        let json_val: serde_json::Value = serde_json::from_str(&result_str)
-            .map_err(|e| Error::new(ErrorKind::RuntimeError(format!("json parse: {e}").into())))?;
-        Ok(json_to_val(&json_val))
+        serde_json::from_str(&result_str)
+            .map_err(|e| Error::new(ErrorKind::RuntimeError(format!("json parse: {e}").into())))
     }
 }
 

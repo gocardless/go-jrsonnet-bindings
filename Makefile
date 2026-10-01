@@ -10,7 +10,9 @@ header:
 	$(CBINDGEN) --crate jrsonnet-go --output $(INCLUDE_DIR)/jrsonnet_go.h
 
 test: rust
+	cargo test --lib
 	go test -v -race -count=1 ./...
+	cd conformance && go test -count=1 ./...
 
 clean:
 	cargo clean

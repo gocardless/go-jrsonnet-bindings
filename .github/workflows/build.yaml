@@ -56,11 +56,38 @@ jobs:
 
       - run: cargo build --release --lib --target ${{ matrix.target }}
 
+      - if: ${{ !matrix.musl }}
+        run: cargo test --lib --target ${{ matrix.target }}
+
+      # Fail if the generated C header is out of date.
+      - if: matrix.target == 'x86_64-unknown-linux-gnu'
+        name: Check the C header is up to date
+        run: |
+          cargo install cbindgen --version 0.29.2 --locked
+          cbindgen --crate jrsonnet-go --output include/jrsonnet_go.h
+          git diff --exit-code include/jrsonnet_go.h
+
       - name: Stage artifact
         run: |
           mkdir -p lib/${{ matrix.target }}
           cp -v target/${{ matrix.target }}/release/libjrsonnet_go.a \
                 lib/${{ matrix.target }}/libjrsonnet_go.a
+
+      # The cgo search paths in jrsonnet.go only cover darwin and glibc. Only
+      # consumers link the musl builds (see examples/).
+      - if: ${{ !matrix.musl }}
+        uses: actions/setup-go@v6
+        with:
+          go-version-file: go.mod
+          cache-dependency-path: conformance/go.sum
+
+      - if: ${{ !matrix.musl }}
+        run: go test -race -count=1 ./...
+
+      - if: ${{ !matrix.musl }}
+        name: Compare with go-jsonnet
+        working-directory: conformance
+        run: go test -count=1 ./...
 
       - uses: actions/upload-artifact@v7
         with:

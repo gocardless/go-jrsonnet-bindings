@@ -1,21 +1,22 @@
 //! Strings passed in from Go.
 
-use std::{borrow::Cow, ffi::OsStr, os::unix::ffi::OsStrExt, path::Path};
+use std::{borrow::Cow, ffi::OsStr, marker::PhantomData, os::unix::ffi::OsStrExt, path::Path};
 
 /// A Go string with the layout of cgo's `_GoString_`, so Go passes a
 /// `string` without copying it. It may contain NUL and invalid UTF-8.
 ///
-/// Only Go creates these, and the bytes stay valid for the duration of the
-/// call. Rust copies whatever it keeps.
+/// Only Go creates these. The bytes stay valid for the duration of the call,
+/// and the lifetime `'a` makes the compiler reject keeping them longer. Rust
+/// copies whatever it keeps.
 #[repr(C)]
-#[derive(Clone, Copy)]
-pub struct GoStr {
+pub struct GoStr<'a> {
     p: *const u8,
     n: isize,
+    _go: PhantomData<&'a [u8]>,
 }
 
-impl GoStr {
-    pub(crate) fn as_bytes(&self) -> &[u8] {
+impl<'a> GoStr<'a> {
+    pub(crate) fn as_bytes(&self) -> &'a [u8] {
         match usize::try_from(self.n) {
             Ok(len) if len > 0 && !self.p.is_null() => {
                 // SAFETY: Go passes `n` readable bytes at `p`, valid for the call.

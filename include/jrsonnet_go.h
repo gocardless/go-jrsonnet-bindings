@@ -85,7 +85,8 @@ typedef int (*GoNativeCallback)(uintptr_t ctx,
  void jrsonnet_go_gc_collect(void);
 
 /**
- * Evaluate a Jsonnet code snippet.
+ * Evaluate a Jsonnet code snippet. The filename and code are decoded as
+ * go-jsonnet does (see [`GoStr::as_str_lossy`]).
  */
 
 struct GoResult jrsonnet_go_evaluate_snippet(const struct VM *vm,
@@ -93,7 +94,7 @@ struct GoResult jrsonnet_go_evaluate_snippet(const struct VM *vm,
                                              _GoString_ snippet);
 
 /**
- * Evaluate a Jsonnet file.
+ * Evaluate a Jsonnet file. The path is used byte for byte.
  */
  struct GoResult jrsonnet_go_evaluate_file(const struct VM *vm, _GoString_ filename);
 

@@ -200,19 +200,8 @@ pub extern "C" fn jrsonnet_go_gc_collect() {
 // Evaluate
 // ---------------------------------------------------------------------------
 
-/// Decodes the filename and code as go-jsonnet does (see
-/// [`GoStr::as_str_lossy`]).
-fn evaluate_snippet(vm: &VM, filename: GoStr, snippet: GoStr) -> Result<Val> {
-    vm.state
-        .evaluate_snippet(&*filename.as_str_lossy(), &*snippet.as_str_lossy())
-}
-
-/// Uses the path byte for byte.
-fn evaluate_file(vm: &VM, filename: GoStr) -> Result<Val> {
-    vm.state.import(filename.as_path())
-}
-
-/// Evaluate a Jsonnet code snippet.
+/// Evaluate a Jsonnet code snippet. The filename and code are decoded as
+/// go-jsonnet does (see [`GoStr::as_str_lossy`]).
 #[no_mangle]
 pub extern "C" fn jrsonnet_go_evaluate_snippet(
     vm: &VM,
@@ -221,7 +210,8 @@ pub extern "C" fn jrsonnet_go_evaluate_snippet(
 ) -> GoResult {
     let result = catch_unwind(std::panic::AssertUnwindSafe(|| {
         let _guard = vm.state.enter();
-        evaluate_snippet(vm, filename, snippet)
+        vm.state
+            .evaluate_snippet(&*filename.as_str_lossy(), &*snippet.as_str_lossy())
             .and_then(|val| apply_tla(&vm.tla_args, val))
             .and_then(|val| val.manifest(&*vm.manifest_format))
             .map(|s| append_newline(s, vm.trailing_newline))
@@ -241,12 +231,13 @@ pub extern "C" fn jrsonnet_go_evaluate_snippet(
     }
 }
 
-/// Evaluate a Jsonnet file.
+/// Evaluate a Jsonnet file. The path is used byte for byte.
 #[no_mangle]
 pub extern "C" fn jrsonnet_go_evaluate_file(vm: &VM, filename: GoStr) -> GoResult {
     let result = catch_unwind(std::panic::AssertUnwindSafe(|| {
         let _guard = vm.state.enter();
-        evaluate_file(vm, filename)
+        vm.state
+            .import(filename.as_path())
             .and_then(|val| apply_tla(&vm.tla_args, val))
             .and_then(|val| val.manifest(&*vm.manifest_format))
             .map(|s| append_newline(s, vm.trailing_newline))
@@ -462,7 +453,10 @@ pub extern "C" fn jrsonnet_go_evaluate_snippet_multi(
     filename: GoStr,
     snippet: GoStr,
 ) -> GoResult {
-    multi_result(vm, || evaluate_snippet(vm, filename, snippet))
+    multi_result(vm, || {
+        vm.state
+            .evaluate_snippet(&*filename.as_str_lossy(), &*snippet.as_str_lossy())
+    })
 }
 
 /// Evaluate a Jsonnet file in multi-file mode. The top-level value must be an
@@ -471,7 +465,7 @@ pub extern "C" fn jrsonnet_go_evaluate_snippet_multi(
 /// `jrsonnet_go_free_buffer`.
 #[no_mangle]
 pub extern "C" fn jrsonnet_go_evaluate_file_multi(vm: &VM, filename: GoStr) -> GoResult {
-    multi_result(vm, || evaluate_file(vm, filename))
+    multi_result(vm, || vm.state.import(filename.as_path()))
 }
 
 /// Evaluate a Jsonnet code snippet in stream mode. The top-level value must be
@@ -484,7 +478,10 @@ pub extern "C" fn jrsonnet_go_evaluate_snippet_stream(
     filename: GoStr,
     snippet: GoStr,
 ) -> GoResult {
-    stream_result(vm, || evaluate_snippet(vm, filename, snippet))
+    stream_result(vm, || {
+        vm.state
+            .evaluate_snippet(&*filename.as_str_lossy(), &*snippet.as_str_lossy())
+    })
 }
 
 /// Evaluate a Jsonnet file in stream mode. The top-level value must be an
@@ -493,7 +490,7 @@ pub extern "C" fn jrsonnet_go_evaluate_snippet_stream(
 /// with `jrsonnet_go_free_buffer`.
 #[no_mangle]
 pub extern "C" fn jrsonnet_go_evaluate_file_stream(vm: &VM, filename: GoStr) -> GoResult {
-    stream_result(vm, || evaluate_file(vm, filename))
+    stream_result(vm, || vm.state.import(filename.as_path()))
 }
 
 /// Free a multi-file / stream transport buffer returned by the `*_multi` /

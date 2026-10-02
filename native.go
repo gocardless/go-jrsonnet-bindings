@@ -13,6 +13,7 @@ import "C"
 
 import (
 	"encoding/json"
+	"fmt"
 	"runtime/cgo"
 	"unsafe"
 )
@@ -21,46 +22,59 @@ import (
 // args is a slice of deserialized JSON values (matching encoding/json conventions:
 // float64 for numbers, string for strings, bool, nil, []any, map[string]any).
 // The return value is serialized back to JSON.
+//
+// It runs on the VM's thread during an evaluation, so it must not call the VM,
+// which deadlocks, nor runtime.Goexit. A panic is returned as an error.
 type NativeFunc func(args []any) (any, error)
+
+// nativeFunc is the value behind a native function's cgo.Handle.
+type nativeFunc struct {
+	name string
+	fn   NativeFunc
+}
 
 //export goNativeCallback
 func goNativeCallback(ctx C.uintptr_t, argsJSON *C.char, argsJSONLen C.uintptr_t,
 	resultJSON **C.char, resultJSONLen *C.uintptr_t) C.int {
 	// ctx is the cgo.Handle value passed straight through as an integer.
-	h := cgo.Handle(ctx)
-	fn := h.Value().(NativeFunc)
+	f := cgo.Handle(ctx).Value().(nativeFunc)
+	args := C.GoBytes(unsafe.Pointer(argsJSON), C.int(argsJSONLen))
 
-	// Unmarshal args from JSON
-	argsBytes := C.GoBytes(unsafe.Pointer(argsJSON), C.int(argsJSONLen))
-	var args []any
-	if err := json.Unmarshal(argsBytes, &args); err != nil {
-		errStr := "failed to unmarshal args: " + err.Error()
-		*resultJSON = C.CString(errStr)
-		*resultJSONLen = C.uintptr_t(len(errStr))
-		return 1
-	}
-
-	// Call the Go function
-	result, err := fn(args)
+	out, err := f.call(args)
 	if err != nil {
-		errStr := err.Error()
-		*resultJSON = C.CString(errStr)
-		*resultJSONLen = C.uintptr_t(len(errStr))
-		return 1
+		out = []byte(err.Error())
 	}
-
-	// Marshal result to JSON
-	resultBytes, err := json.Marshal(result)
+	*resultJSON = (*C.char)(C.CBytes(out))
+	*resultJSONLen = C.uintptr_t(len(out))
 	if err != nil {
-		errStr := "failed to marshal result: " + err.Error()
-		*resultJSON = C.CString(errStr)
-		*resultJSONLen = C.uintptr_t(len(errStr))
 		return 1
 	}
-
-	*resultJSON = C.CString(string(resultBytes))
-	*resultJSONLen = C.uintptr_t(len(resultBytes))
 	return 0
+}
+
+// call runs the function on JSON arguments and returns its JSON result. It
+// returns a panic as an error, with go-jsonnet's wording, as a panic must not
+// unwind through the Rust frames that called into Go.
+func (f nativeFunc) call(argsJSON []byte) (result []byte, err error) {
+	defer func() {
+		if r := recover(); r != nil {
+			err = fmt.Errorf("native function %#v panicked: %v", f.name, r)
+		}
+	}()
+
+	var args []any
+	if err := json.Unmarshal(argsJSON, &args); err != nil {
+		return nil, fmt.Errorf("failed to unmarshal args: %w", err)
+	}
+	out, err := f.fn(args)
+	if err != nil {
+		return nil, err
+	}
+	result, err = json.Marshal(out)
+	if err != nil {
+		return nil, fmt.Errorf("failed to marshal result: %w", err)
+	}
+	return result, nil
 }
 
 // RegisterNativeFunction registers a native extension function on the VM.
@@ -68,8 +82,7 @@ func goNativeCallback(ctx C.uintptr_t, argsJSON *C.char, argsJSONLen C.uintptr_t
 // params is the list of parameter names.
 // fn is the Go function that implements the extension.
 func (v *VM) RegisterNativeFunction(name string, params []string, fn NativeFunc) {
-	h := cgo.NewHandle(fn)
-	v.nativeHandles = append(v.nativeHandles, h)
+	f := nativeFunc{name: name, fn: fn}
 
 	cName := C.CString(name)
 	defer C.free(unsafe.Pointer(cName))
@@ -79,6 +92,10 @@ func (v *VM) RegisterNativeFunction(name string, params []string, fn NativeFunc)
 	defer C.free(unsafe.Pointer(cParams))
 
 	_ = v.withThread(func() {
+		// Creating the handle on the VM's thread serialises access to
+		// nativeHandles, and creates none once the VM is closed.
+		h := cgo.NewHandle(f)
+		v.nativeHandles = append(v.nativeHandles, h)
 		C.jrsonnet_go_native_callback(
 			v.vm,
 			cName,

@@ -43,7 +43,7 @@ pub struct VM {
 pub extern "C" fn jrsonnet_go_vm_make(jpaths: GoStr) -> *mut VM {
     guard(
         |_| std::ptr::null_mut(),
-        || make_vm(FileImportResolver::new(split_jpaths(jpaths))),
+        || make_vm(FileImportResolver::new(split_jpaths(jpaths.as_bytes()))),
     )
 }
 
@@ -82,9 +82,9 @@ fn make_vm(resolver: impl ImportResolver) -> *mut VM {
 
 /// Splits NUL-terminated paths and reverses them, as jrsonnet searches them
 /// in order and go-jsonnet from the last one.
-fn split_jpaths(jpaths: GoStr) -> Vec<PathBuf> {
+fn split_jpaths(jpaths: &[u8]) -> Vec<PathBuf> {
     let mut out = Vec::new();
-    let mut rest = jpaths.as_bytes();
+    let mut rest = jpaths;
     while let Some(end) = rest.iter().position(|b| *b == 0) {
         out.push(path_from_bytes(&rest[..end]).to_owned());
         rest = &rest[end + 1..];

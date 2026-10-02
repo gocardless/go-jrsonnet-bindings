@@ -40,15 +40,7 @@ pub extern "C" fn jrsonnet_go_evaluate(
     snippet: GoStr,
     mode: c_int,
 ) -> GoResult {
-    let result = evaluate(vm, file, filename, snippet, mode);
-    if result.error != 0 {
-        guard(drop, || vm.flush_values());
-    }
-    result
-}
-
-fn evaluate(vm: &VM, file: bool, filename: GoStr, snippet: GoStr, mode: c_int) -> GoResult {
-    guard(GoResult::panic, || {
+    let result = guard(GoResult::panic, || {
         let _guard = vm.state.enter();
         let val = if file {
             vm.state.import(filename.as_path())
@@ -63,7 +55,11 @@ fn evaluate(vm: &VM, file: bool, filename: GoStr, snippet: GoStr, mode: c_int) -
             Ok(data) => GoResult::ok(data),
             Err(e) => GoResult::err(format_error(vm, &e)),
         }
-    })
+    });
+    if result.error != 0 {
+        guard(drop, || vm.flush_values());
+    }
+    result
 }
 
 fn manifest(vm: &VM, val: Val, mode: c_int) -> Result<Vec<u8>> {

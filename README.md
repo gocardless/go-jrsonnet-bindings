@@ -238,13 +238,15 @@ result, _ := vm.EvaluateSnippet("test.jsonnet", `function(env, port) {
 
 ## Thread Safety
 
-A `VM` is safe to share across goroutines: calls are serialised internally and run in FIFO order.
+A `VM` is safe to share across goroutines. It runs calls one at a time, in no guaranteed order.
 
 Things to be aware of:
 
 - Each `VM` owns one dedicated OS thread for its entire lifetime, so prefer reusing a long-lived VM over creating a new one per request.
 - Only one evaluation runs at a time per VM. For parallelism, create multiple VMs.
 - `Close()` waits for any in-flight call to finish before tearing the VM down.
+- Native functions and importers run on the VM's thread during an evaluation. They must not call the VM, which deadlocks, nor `runtime.Goexit`.
+- Past a few thousand stack frames, jrsonnet continues on a stack it allocates itself. A native function or importer called from there crashes the process, so keep `WithMaxStack` well below that when using either.
 
 ## Architecture
 

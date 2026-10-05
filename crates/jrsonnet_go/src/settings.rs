@@ -1,8 +1,4 @@
-use std::{
-    ffi::CStr,
-    os::raw::{c_char, c_uint},
-    path::PathBuf,
-};
+use std::os::raw::c_uint;
 
 use jrsonnet_evaluator::{
     manifest::{JsonFormat, ToStringFormat},
@@ -10,7 +6,7 @@ use jrsonnet_evaluator::{
     trace::CompactFormat,
 };
 
-use crate::VM;
+use crate::{input::GoStr, VM};
 
 /// Set the maximum stack depth.
 #[no_mangle]
@@ -43,14 +39,8 @@ pub extern "C" fn jrsonnet_go_trailing_newline(vm: &mut VM, flag: c_uint) {
     vm.trailing_newline = flag != 0;
 }
 
-/// Add a library search path (jpath).
-///
-/// # Safety
-///
-/// `path` must be a NUL-terminated string.
+/// Add a library search path (jpath). The path is used byte for byte.
 #[no_mangle]
-pub unsafe extern "C" fn jrsonnet_go_jpath_add(vm: &VM, path: *const c_char) {
-    let cstr = unsafe { CStr::from_ptr(path) };
-    let path = PathBuf::from(cstr.to_str().expect("jpath is not utf-8"));
-    vm.add_jpath(path);
+pub extern "C" fn jrsonnet_go_jpath_add(vm: &VM, path: GoStr) {
+    vm.add_jpath(path.as_path().to_owned());
 }

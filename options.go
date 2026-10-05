@@ -2,11 +2,8 @@ package jrsonnet
 
 /*
 #include "jrsonnet_go.h"
-#include <stdlib.h>
 */
 import "C"
-
-import "unsafe"
 
 // Option configures a VM during creation.
 type Option interface {
@@ -64,9 +61,7 @@ func WithTrailingNewline(enabled bool) Option {
 func WithJPath(paths ...string) Option {
 	return optionFunc(func(vm *VM) error {
 		for _, p := range paths {
-			cp := C.CString(p)
-			C.jrsonnet_go_jpath_add(vm.vm, cp)
-			C.free(unsafe.Pointer(cp))
+			C.jrsonnet_go_jpath_add(vm.vm, p)
 		}
 		return nil
 	})

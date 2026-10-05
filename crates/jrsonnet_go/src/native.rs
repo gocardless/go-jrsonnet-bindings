@@ -1,7 +1,7 @@
 #![allow(unused_assignments)] // False positive from jrsonnet_gcmodule::Trace derive on #[trace(skip)] fields
 
 use std::{
-    ffi::{c_void, CStr, CString},
+    ffi::{c_void, CString},
     os::raw::{c_char, c_int},
 };
 
@@ -17,7 +17,7 @@ use jrsonnet_evaluator::{
     Val,
 };
 
-use crate::VM;
+use crate::{input::GoStr, VM};
 
 /// Go native function callback type.
 ///
@@ -104,40 +104,30 @@ impl NativeCallbackHandler for GoNativeCallbackHandler {
     }
 }
 
-/// Register a native function on the VM.
+/// Register a native function on the VM. A name that isn't valid UTF-8 is
+/// ignored, as go-jsonnet can never look it up. `params_json` is a JSON
+/// array of parameter names.
 ///
 /// # Safety
 ///
-/// - `vm` must be a valid VM pointer
-/// - `name` must be NUL-terminated
-/// - `cb` must be a valid function pointer
-/// - `params_json` must be a NUL-terminated JSON array of param name strings, e.g. `["x","y"]`
+/// `cb` must be a valid function pointer.
 #[no_mangle]
 pub unsafe extern "C" fn jrsonnet_go_native_callback(
     vm: &VM,
-    name: *const c_char,
+    name: GoStr,
     cb: GoNativeCallback,
     ctx: usize,
-    params_json: *const c_char,
+    params_json: GoStr,
 ) {
-    let name = unsafe { CStr::from_ptr(name) }
-        .to_str()
-        .expect("name is not utf-8");
-    let params_str = unsafe { CStr::from_ptr(params_json) }
-        .to_str()
-        .expect("params is not utf-8");
-
-    let params: Vec<String> =
-        serde_json::from_str(params_str).expect("params_json must be a JSON array of strings");
-
-    let any_resolver = vm.state.context_initializer();
-    any_resolver
-        .as_any()
-        .downcast_ref::<jrsonnet_stdlib::ContextInitializer>()
-        .expect("only stdlib context initializer supported")
-        .add_native(
-            name,
-            #[allow(deprecated)]
-            NativeCallback::new(params, GoNativeCallbackHandler { ctx, cb }),
-        );
+    let Some(name) = name.as_str() else { return };
+    // Go marshals a nil slice as null.
+    let params: Vec<String> = serde_json::from_slice::<Option<_>>(params_json.as_bytes())
+        .ok()
+        .flatten()
+        .unwrap_or_default();
+    vm.ctx.add_native(
+        name,
+        #[allow(deprecated)]
+        NativeCallback::new(params, GoNativeCallbackHandler { ctx, cb }),
+    );
 }

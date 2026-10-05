@@ -79,17 +79,15 @@ func (f nativeFunc) call(argsJSON []byte) (result []byte, err error) {
 
 // RegisterNativeFunction registers a native extension function on the VM.
 // name is the function name accessible in Jsonnet as std.native("name").
+// A name that isn't valid UTF-8 is ignored, as go-jsonnet can never look it
+// up.
 // params is the list of parameter names.
 // fn is the Go function that implements the extension.
 func (v *VM) RegisterNativeFunction(name string, params []string, fn NativeFunc) {
 	f := nativeFunc{name: name, fn: fn}
 
-	cName := C.CString(name)
-	defer C.free(unsafe.Pointer(cName))
-
+	// Can't fail for a []string.
 	paramsJSON, _ := json.Marshal(params)
-	cParams := C.CString(string(paramsJSON))
-	defer C.free(unsafe.Pointer(cParams))
 
 	_ = v.withThread(func() {
 		// Creating the handle on the VM's thread serialises access to
@@ -98,10 +96,10 @@ func (v *VM) RegisterNativeFunction(name string, params []string, fn NativeFunc)
 		v.nativeHandles = append(v.nativeHandles, h)
 		C.jrsonnet_go_native_callback(
 			v.vm,
-			cName,
+			name,
 			C.GoNativeCallback(C.goNativeCallbackBridge),
 			C.uintptr_t(h),
-			cParams,
+			string(paramsJSON),
 		)
 	})
 }

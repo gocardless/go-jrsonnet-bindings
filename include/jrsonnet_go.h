@@ -85,85 +85,56 @@ typedef int (*GoNativeCallback)(uintptr_t ctx,
  void jrsonnet_go_gc_collect(void);
 
 /**
- * Evaluate a Jsonnet code snippet.
- *
- * # Safety
- *
- * `filename` and `snippet` must be NUL-terminated strings.
- * `vm` must be a valid pointer.
+ * Evaluate a Jsonnet code snippet. The filename and code are decoded as
+ * go-jsonnet does (see [`GoStr::as_str_lossy`]).
  */
 
 struct GoResult jrsonnet_go_evaluate_snippet(const struct VM *vm,
-                                             const char *filename,
-                                             const char *snippet);
+                                             _GoString_ filename,
+                                             _GoString_ snippet);
 
 /**
- * Evaluate a Jsonnet file.
- *
- * # Safety
- *
- * `filename` must be a NUL-terminated string.
- * `vm` must be a valid pointer.
+ * Evaluate a Jsonnet file. The path is used byte for byte.
  */
- struct GoResult jrsonnet_go_evaluate_file(const struct VM *vm, const char *filename);
+ struct GoResult jrsonnet_go_evaluate_file(const struct VM *vm, _GoString_ filename);
 
 /**
  * Evaluate a Jsonnet code snippet in multi-file mode. The top-level value must
  * be an object; each field is manifested independently. Success payload is the
  * length-prefixed transport buffer (see module notes), freed with
  * `jrsonnet_go_free_buffer`.
- *
- * # Safety
- *
- * `filename` and `snippet` must be NUL-terminated strings.
- * `vm` must be a valid pointer.
  */
 
 struct GoResult jrsonnet_go_evaluate_snippet_multi(const struct VM *vm,
-                                                   const char *filename,
-                                                   const char *snippet);
+                                                   _GoString_ filename,
+                                                   _GoString_ snippet);
 
 /**
  * Evaluate a Jsonnet file in multi-file mode. The top-level value must be an
  * object; each field is manifested independently. Success payload is the
  * length-prefixed transport buffer (see module notes), freed with
  * `jrsonnet_go_free_buffer`.
- *
- * # Safety
- *
- * `filename` must be a NUL-terminated string.
- * `vm` must be a valid pointer.
  */
- struct GoResult jrsonnet_go_evaluate_file_multi(const struct VM *vm, const char *filename);
+ struct GoResult jrsonnet_go_evaluate_file_multi(const struct VM *vm, _GoString_ filename);
 
 /**
  * Evaluate a Jsonnet code snippet in stream mode. The top-level value must be
  * an array; each element is manifested independently, preserving order.
  * Success payload is the length-prefixed transport buffer (see module notes),
  * freed with `jrsonnet_go_free_buffer`.
- *
- * # Safety
- *
- * `filename` and `snippet` must be NUL-terminated strings.
- * `vm` must be a valid pointer.
  */
 
 struct GoResult jrsonnet_go_evaluate_snippet_stream(const struct VM *vm,
-                                                    const char *filename,
-                                                    const char *snippet);
+                                                    _GoString_ filename,
+                                                    _GoString_ snippet);
 
 /**
  * Evaluate a Jsonnet file in stream mode. The top-level value must be an
  * array; each element is manifested independently, preserving order. Success
  * payload is the length-prefixed transport buffer (see module notes), freed
  * with `jrsonnet_go_free_buffer`.
- *
- * # Safety
- *
- * `filename` must be a NUL-terminated string.
- * `vm` must be a valid pointer.
  */
- struct GoResult jrsonnet_go_evaluate_file_stream(const struct VM *vm, const char *filename);
+ struct GoResult jrsonnet_go_evaluate_file_stream(const struct VM *vm, _GoString_ filename);
 
 /**
  * Free a multi-file / stream transport buffer returned by the `*_multi` /
@@ -190,21 +161,20 @@ extern void free(void *ptr);
  void jrsonnet_go_import_callback(const struct VM *vm, GoImportCallback cb, uintptr_t ctx);
 
 /**
- * Register a native function on the VM.
+ * Register a native function on the VM. A name that isn't valid UTF-8 is
+ * ignored, as go-jsonnet can never look it up. `params_json` is a JSON
+ * array of parameter names.
  *
  * # Safety
  *
- * - `vm` must be a valid VM pointer
- * - `name` must be NUL-terminated
- * - `cb` must be a valid function pointer
- * - `params_json` must be a NUL-terminated JSON array of param name strings, e.g. `["x","y"]`
+ * `cb` must be a valid function pointer.
  */
 
 void jrsonnet_go_native_callback(const struct VM *vm,
-                                 const char *name,
+                                 _GoString_ name,
                                  GoNativeCallback cb,
                                  uintptr_t ctx,
-                                 const char *params_json);
+                                 _GoString_ params_json);
 
 /**
  * Set the maximum stack depth.
@@ -228,52 +198,29 @@ void jrsonnet_go_native_callback(const struct VM *vm,
  void jrsonnet_go_trailing_newline(struct VM *vm, unsigned int flag);
 
 /**
- * Add a library search path (jpath).
- *
- * # Safety
- *
- * `path` must be a NUL-terminated string.
+ * Add a library search path (jpath). The path is used byte for byte.
  */
- void jrsonnet_go_jpath_add(const struct VM *vm, const char *path);
+ void jrsonnet_go_jpath_add(const struct VM *vm, _GoString_ path);
 
 /**
  * Bind an external string variable.
- *
- * # Safety
- *
- * `name`, `value` must be NUL-terminated strings.
  */
- int jrsonnet_go_ext_var(const struct VM *vm, const char *name, const char *value);
+ void jrsonnet_go_ext_var(const struct VM *vm, _GoString_ name, _GoString_ value);
 
 /**
- * Bind an external code variable. Returns 0 on success, 1 on parse error.
- * On error, writes error message to `err_out` (caller must free with `jrsonnet_go_free_string`).
- *
- * # Safety
- *
- * `name`, `code` must be NUL-terminated strings.
- * `err_out` must be a valid pointer.
+ * Bind an external code variable.
  */
- int jrsonnet_go_ext_code(const struct VM *vm, const char *name, const char *code, char **err_out);
+ void jrsonnet_go_ext_code(const struct VM *vm, _GoString_ name, _GoString_ code);
 
 /**
  * Bind a top-level string argument.
- *
- * # Safety
- *
- * `name`, `value` must be NUL-terminated strings.
  */
- int jrsonnet_go_tla_var(struct VM *vm, const char *name, const char *value);
+ void jrsonnet_go_tla_var(struct VM *vm, _GoString_ name, _GoString_ value);
 
 /**
- * Bind a top-level code argument. Returns 0 on success, 1 on error.
- *
- * # Safety
- *
- * `name`, `code` must be NUL-terminated strings.
- * `err_out` must be a valid pointer.
+ * Bind a top-level code argument.
  */
- int jrsonnet_go_tla_code(struct VM *vm, const char *name, const char *code, char **err_out);
+ void jrsonnet_go_tla_code(struct VM *vm, _GoString_ name, _GoString_ code);
 
 /**
  * Clear all TLA arguments.

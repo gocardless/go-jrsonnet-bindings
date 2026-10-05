@@ -10,9 +10,13 @@ include = [
     "GoImportCallback",
     "GoNativeCallback",
 ]
+# GoStr has the layout of cgo's _GoString_, which cgo defines in every
+# preamble. cbindgen then warns that it can't find GoStr; that's expected.
+exclude = ["GoStr"]
 
 [export.rename]
 "GoResult" = "GoResult"
+"GoStr" = "_GoString_"
 
 [fn]
 prefix = ""

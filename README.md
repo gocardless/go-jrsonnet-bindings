@@ -217,9 +217,9 @@ result, _ := vm.EvaluateSnippet("test.jsonnet", `function(env, port) {
 | Method | Description |
 |---|---|
 | `ExtVar(key, val string)` | Bind an external string variable |
-| `ExtCode(key, code string) error` | Bind an external code variable |
+| `ExtCode(key, code string)` | Bind an external code variable |
 | `TLAVar(key, val string)` | Bind a top-level string argument |
-| `TLACode(key, code string) error` | Bind a top-level code argument |
+| `TLACode(key, code string)` | Bind a top-level code argument |
 | `TLAReset()` | Clear all TLA arguments |
 
 ### Native Functions

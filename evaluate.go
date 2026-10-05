@@ -14,14 +14,9 @@ import (
 
 // EvaluateSnippet evaluates a string of Jsonnet code and returns the result as JSON.
 func (v *VM) EvaluateSnippet(filename, snippet string) (string, error) {
-	cFilename := C.CString(filename)
-	cSnippet := C.CString(snippet)
-	defer C.free(unsafe.Pointer(cFilename))
-	defer C.free(unsafe.Pointer(cSnippet))
-
 	var result C.struct_GoResult
 	err := v.withThread(func() {
-		result = C.jrsonnet_go_evaluate_snippet(v.vm, cFilename, cSnippet)
+		result = C.jrsonnet_go_evaluate_snippet(v.vm, filename, snippet)
 	})
 	if err != nil {
 		return "", err
@@ -32,12 +27,9 @@ func (v *VM) EvaluateSnippet(filename, snippet string) (string, error) {
 
 // EvaluateFile evaluates a Jsonnet file and returns the result as JSON.
 func (v *VM) EvaluateFile(filename string) (string, error) {
-	cFilename := C.CString(filename)
-	defer C.free(unsafe.Pointer(cFilename))
-
 	var result C.struct_GoResult
 	err := v.withThread(func() {
-		result = C.jrsonnet_go_evaluate_file(v.vm, cFilename)
+		result = C.jrsonnet_go_evaluate_file(v.vm, filename)
 	})
 	if err != nil {
 		return "", err
@@ -51,14 +43,9 @@ func (v *VM) EvaluateFile(filename string) (string, error) {
 // independently and returned as a map from field name to that field's output.
 // A non-object top-level value returns an evaluation error.
 func (v *VM) EvaluateSnippetMulti(filename, snippet string) (map[string]string, error) {
-	cFilename := C.CString(filename)
-	cSnippet := C.CString(snippet)
-	defer C.free(unsafe.Pointer(cFilename))
-	defer C.free(unsafe.Pointer(cSnippet))
-
 	var result C.struct_GoResult
 	err := v.withThread(func() {
-		result = C.jrsonnet_go_evaluate_snippet_multi(v.vm, cFilename, cSnippet)
+		result = C.jrsonnet_go_evaluate_snippet_multi(v.vm, filename, snippet)
 	})
 	if err != nil {
 		return nil, err
@@ -72,12 +59,9 @@ func (v *VM) EvaluateSnippetMulti(filename, snippet string) (map[string]string, 
 // returned as a map from field name to that field's output. A non-object
 // top-level value returns an evaluation error.
 func (v *VM) EvaluateFileMulti(filename string) (map[string]string, error) {
-	cFilename := C.CString(filename)
-	defer C.free(unsafe.Pointer(cFilename))
-
 	var result C.struct_GoResult
 	err := v.withThread(func() {
-		result = C.jrsonnet_go_evaluate_file_multi(v.vm, cFilename)
+		result = C.jrsonnet_go_evaluate_file_multi(v.vm, filename)
 	})
 	if err != nil {
 		return nil, err
@@ -91,14 +75,9 @@ func (v *VM) EvaluateFileMulti(filename string) (map[string]string, error) {
 // independently and returned as an ordered slice (order preserved). A
 // non-array top-level value returns an evaluation error.
 func (v *VM) EvaluateSnippetStream(filename, snippet string) ([]string, error) {
-	cFilename := C.CString(filename)
-	cSnippet := C.CString(snippet)
-	defer C.free(unsafe.Pointer(cFilename))
-	defer C.free(unsafe.Pointer(cSnippet))
-
 	var result C.struct_GoResult
 	err := v.withThread(func() {
-		result = C.jrsonnet_go_evaluate_snippet_stream(v.vm, cFilename, cSnippet)
+		result = C.jrsonnet_go_evaluate_snippet_stream(v.vm, filename, snippet)
 	})
 	if err != nil {
 		return nil, err
@@ -112,12 +91,9 @@ func (v *VM) EvaluateSnippetStream(filename, snippet string) ([]string, error) {
 // and returned as an ordered slice (order preserved). A non-array top-level
 // value returns an evaluation error.
 func (v *VM) EvaluateFileStream(filename string) ([]string, error) {
-	cFilename := C.CString(filename)
-	defer C.free(unsafe.Pointer(cFilename))
-
 	var result C.struct_GoResult
 	err := v.withThread(func() {
-		result = C.jrsonnet_go_evaluate_file_stream(v.vm, cFilename)
+		result = C.jrsonnet_go_evaluate_file_stream(v.vm, filename)
 	})
 	if err != nil {
 		return nil, err

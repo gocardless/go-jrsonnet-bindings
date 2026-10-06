@@ -113,9 +113,11 @@ typedef int (*GoNativeCallback)(uintptr_t ctx,
  * manifests the result in `mode`, a `JRSONNET_GO_MODE_*` constant. A file
  * path is used byte for byte. A snippet and its filename are decoded as
  * go-jsonnet does (see [`GoStr::as_str_lossy`]).
+ *
+ * An error flushes the values cached for files (see [`VM::flush_values`]).
  */
 
-struct GoResult jrsonnet_go_evaluate(const struct VM *vm,
+struct GoResult jrsonnet_go_evaluate(struct VM *vm,
                                      bool file,
                                      _GoString_ filename,
                                      _GoString_ snippet,
@@ -131,7 +133,7 @@ struct GoResult jrsonnet_go_evaluate(const struct VM *vm,
  * `cb` must be a valid function pointer.
  */
 
-void jrsonnet_go_native_callback(const struct VM *vm,
+void jrsonnet_go_native_callback(struct VM *vm,
                                  _GoString_ name,
                                  GoNativeCallback cb,
                                  uintptr_t ctx,
@@ -170,12 +172,12 @@ void jrsonnet_go_native_callback(const struct VM *vm,
 /**
  * Bind an external string variable.
  */
- void jrsonnet_go_ext_var(const struct VM *vm, _GoString_ name, _GoString_ value);
+ void jrsonnet_go_ext_var(struct VM *vm, _GoString_ name, _GoString_ value);
 
 /**
  * Bind an external code variable.
  */
- void jrsonnet_go_ext_code(const struct VM *vm, _GoString_ name, _GoString_ code);
+ void jrsonnet_go_ext_code(struct VM *vm, _GoString_ name, _GoString_ code);
 
 /**
  * Bind a top-level string argument.

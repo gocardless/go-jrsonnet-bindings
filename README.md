@@ -207,8 +207,8 @@ result, _ := vm.EvaluateSnippet("test.jsonnet", `function(env, port) {
 | `WithMaxStack(depth uint)` | Set maximum stack depth |
 | `WithMaxTrace(lines uint)` | Set maximum stack trace lines (0 = all) |
 | `WithStringOutput(enabled bool)` | Output raw strings instead of JSON |
-| `WithJPath(paths ...string)` | Add library search paths |
-| `WithImporter(fn ImportFunc)` | Set a custom import callback |
+| `WithJPath(paths ...string)` | Add library search paths (a later path wins) |
+| `WithImporter(fn ImportFunc)` | Set a custom import callback (can't be combined with `WithJPath`) |
 
 ### Variables
 

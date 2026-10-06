@@ -14,6 +14,7 @@ import (
 	"errors"
 	"runtime"
 	"runtime/cgo"
+	"strings"
 	"sync"
 )
 
@@ -52,13 +53,17 @@ type VM struct {
 // A dedicated OS thread is spawned for the VM. All subsequent operations
 // (including Close) run on that thread.
 func New(opts ...Option) (*VM, error) {
+	c, err := newConfig(opts)
+	if err != nil {
+		return nil, err
+	}
 	v := &VM{
 		tasks:    make(chan vmTask),
 		finished: make(chan struct{}),
 	}
 
 	started := make(chan error, 1)
-	go v.runLoop(opts, started)
+	go v.runLoop(c, started)
 	if err := <-started; err != nil {
 		// runLoop has already torn down and closed v.finished.
 		<-v.finished
@@ -68,9 +73,9 @@ func New(opts ...Option) (*VM, error) {
 }
 
 // runLoop is the dedicated goroutine that owns the VM's OS thread.
-// It creates the VM, applies options, then processes tasks until the
-// tasks channel is closed by Close.
-func (v *VM) runLoop(opts []Option, started chan<- error) {
+// It creates the VM, then processes tasks until the tasks channel is closed
+// by Close.
+func (v *VM) runLoop(c *config, started chan<- error) {
 	// Pin this goroutine to its OS thread for its entire lifetime.
 	// We intentionally do NOT call UnlockOSThread: when this goroutine
 	// returns, the Go runtime terminates the underlying OS thread, which
@@ -78,28 +83,12 @@ func (v *VM) runLoop(opts []Option, started chan<- error) {
 	// in the order jrsonnet expects.
 	runtime.LockOSThread()
 
-	v.vm = C.jrsonnet_go_vm_make()
-	if v.vm == nil {
-		started <- errors.New("jrsonnet: failed to create the VM")
+	if err := v.create(c); err != nil {
+		started <- err
 		close(v.finished)
 		return
 	}
-
-	var startErr error
-	for _, opt := range opts {
-		if err := opt.apply(v); err != nil {
-			startErr = err
-			break
-		}
-	}
-	started <- startErr
-	if startErr != nil {
-		C.jrsonnet_go_vm_destroy(v.vm)
-		C.jrsonnet_go_gc_collect()
-		v.vm = nil
-		close(v.finished)
-		return
-	}
+	started <- nil
 
 	for task := range v.tasks {
 		task.fn()
@@ -111,6 +100,45 @@ func (v *VM) runLoop(opts []Option, started chan<- error) {
 	C.jrsonnet_go_gc_collect()
 	v.vm = nil
 	close(v.finished)
+}
+
+// create creates the VM from c, on the VM's thread.
+func (v *VM) create(c *config) error {
+	if c.importer != nil {
+		h := cgo.NewHandle(c.importer)
+		v.importHandle = &h
+		v.vm = makeVMWithImporter(h)
+	} else {
+		var jpaths strings.Builder
+		for _, p := range c.jpaths {
+			jpaths.WriteString(p)
+			jpaths.WriteByte(0) // WithJPath rejects paths containing NUL
+		}
+		v.vm = C.jrsonnet_go_vm_make(jpaths.String())
+	}
+	if v.vm == nil {
+		if v.importHandle != nil {
+			v.importHandle.Delete()
+		}
+		return errors.New("jrsonnet: failed to create the VM")
+	}
+
+	if c.maxStack != nil {
+		C.jrsonnet_go_max_stack(v.vm, C.uint(*c.maxStack))
+	}
+	if c.maxTrace != nil {
+		C.jrsonnet_go_max_trace(v.vm, C.uint(*c.maxTrace))
+	}
+	C.jrsonnet_go_string_output(v.vm, cFlag(c.stringOutput))
+	C.jrsonnet_go_trailing_newline(v.vm, cFlag(c.trailingNewline))
+	return nil
+}
+
+func cFlag(b bool) C.uint {
+	if b {
+		return 1
+	}
+	return 0
 }
 
 // Close destroys the VM and frees all resources.

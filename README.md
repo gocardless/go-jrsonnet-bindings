@@ -55,7 +55,7 @@ make rust
 # Regenerate the C header (only needed after Rust API changes)
 make header
 
-# Run tests
+# Run tests, including the comparison with go-jsonnet
 make test
 ```
 
@@ -234,6 +234,28 @@ result, _ := vm.EvaluateSnippet("test.jsonnet", `function(env, port) {
 | `EvaluationError` | Jsonnet evaluation error |
 | `PanicError` | Rust panic caught at FFI boundary |
 | `ErrVMClosed` | Operation on a closed VM |
+
+## Differences from go-jsonnet
+
+The [`conformance`](./conformance) module runs the same cases through this
+package and [go-jsonnet](https://github.com/google/go-jsonnet) v0.22.0, and
+compares the results. It is a separate Go module, so this package doesn't
+depend on go-jsonnet. Each difference below has a case there.
+
+Error messages differ in wording, and the tests don't compare them.
+
+- `std.thisFile` in `EvaluateSnippet` is `"virtual:<filename>"`. In
+  go-jsonnet's `EvaluateAnonymousSnippet` it is `""`.
+- `std.thisFile` in a file resolves symlinks, and is relative to the working
+  directory at `New()` unless that would climb to the root. Error messages
+  show absolute paths with symlinks resolved. go-jsonnet shows paths as given.
+- Importing a file that isn't valid UTF-8 with `import` or `importstr` is an
+  error, as in jrsonnet. go-jsonnet replaces each invalid byte with U+FFFD.
+- A native function may return anything `encoding/json` can marshal, such as
+  `[]string`. go-jsonnet only accepts the types it passes in.
+- Stream mode honours string output and the trailing newline setting, like
+  the other modes and jrsonnet's own C bindings. go-jsonnet ignores both in
+  stream mode, and always outputs JSON followed by a newline.
 
 ## Thread Safety
 

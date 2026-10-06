@@ -87,9 +87,9 @@ checksum = "f2032f911046de80f0a198e0901378627c33f59ea0ac00e363d481118bd70a53"
 
 [[package]]
 name = "base64"
-version = "0.22.1"
+version = "0.23.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "72b3254f16251a8381aa12e40e3c4d2f0199f8c6508fbecb9d91f575e0fbb8c6"
+checksum = "ac07cdecf99051d9a5238b80f35af32cdeba5b336e55d957b318b50137e18da5"
 
 [[package]]
 name = "bitflags"
@@ -192,7 +192,7 @@ checksum = "1ac70aa55017e108007fbaf5aa0f54b021c98f92ff8af59d42eda9da96e3dd4f"
 dependencies = [
  "proc-macro2",
  "quote",
- "syn",
+ "syn 2.0.118",
 ]
 
 [[package]]
@@ -203,14 +203,14 @@ checksum = "9bda8e21c04aca2ae33ffc2fd8c23134f3cac46db123ba97bd9d3f3b8a4a85e1"
 
 [[package]]
 name = "educe"
-version = "0.6.0"
+version = "0.7.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "1d7bc049e1bd8cdeb31b68bbd586a9464ecf9f3944af3958a7a9d0f8b9799417"
+checksum = "e451fac8dd8dece16234604bf1efce6e90fddd8ab6ad4d66eec0eca5160959dd"
 dependencies = [
  "enum-ordinalize",
  "proc-macro2",
  "quote",
- "syn",
+ "syn 3.0.6",
 ]
 
 [[package]]
@@ -260,7 +260,7 @@ checksum = "42e528e2d34ba8a67a1a650b86beae8ef69fc5fdb638016f386b973226590432"
 dependencies = [
  "proc-macro2",
  "quote",
- "syn",
+ "syn 2.0.118",
 ]
 
 [[package]]
@@ -287,7 +287,7 @@ checksum = "dd65f1b59dd22d680c7a626cc4a000c1e03d241c51c3e034d2bc9f1e90734f9b"
 dependencies = [
  "proc-macro2",
  "quote",
- "syn",
+ "syn 2.0.118",
 ]
 
 [[package]]
@@ -363,9 +363,9 @@ dependencies = [
 
 [[package]]
 name = "granit-parser"
-version = "0.0.3"
+version = "0.0.7"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f50ba32164f9e098d5da618776a32afbb32270adcbe3d3d006107dae11e37c91"
+checksum = "d03f81ad4732830d85cfd417a9f62cde6dadda4354d37d078a6084a19560aa2d"
 dependencies = [
  "arraydeque",
  "smallvec",
@@ -565,7 +565,7 @@ checksum = "8f42a60cbdf9a97f5d2305f08a87dc4e09308d1276d28c869c684d7777685682"
 [[package]]
 name = "jrsonnet-evaluator"
 version = "0.5.0-pre99"
-source = "git+https://github.com/CertainLach/jrsonnet.git?rev=c7e3e2e54cd3663af66eec3c6ae1af8b5ab1c053#c7e3e2e54cd3663af66eec3c6ae1af8b5ab1c053"
+source = "git+https://github.com/deltarocks/jrsonnet.git?rev=b9d891c46e9e7d87e9aeb0765b44c416bae7645b#b9d891c46e9e7d87e9aeb0765b44c416bae7645b"
 dependencies = [
  "drop_bomb",
  "educe",
@@ -605,7 +605,7 @@ checksum = "829a23aa96f1afb78bbc9722e323ced7a0b75d9b89cec6bfbc709cf484e8a0a4"
 dependencies = [
  "proc-macro2",
  "quote",
- "syn",
+ "syn 2.0.118",
 ]
 
 [[package]]
@@ -622,7 +622,7 @@ dependencies = [
 [[package]]
 name = "jrsonnet-interner"
 version = "0.5.0-pre99"
-source = "git+https://github.com/CertainLach/jrsonnet.git?rev=c7e3e2e54cd3663af66eec3c6ae1af8b5ab1c053#c7e3e2e54cd3663af66eec3c6ae1af8b5ab1c053"
+source = "git+https://github.com/deltarocks/jrsonnet.git?rev=b9d891c46e9e7d87e9aeb0765b44c416bae7645b#b9d891c46e9e7d87e9aeb0765b44c416bae7645b"
 dependencies = [
  "hashbrown",
  "jrsonnet-gcmodule",
@@ -632,7 +632,7 @@ dependencies = [
 [[package]]
 name = "jrsonnet-ir"
 version = "0.5.0-pre99"
-source = "git+https://github.com/CertainLach/jrsonnet.git?rev=c7e3e2e54cd3663af66eec3c6ae1af8b5ab1c053#c7e3e2e54cd3663af66eec3c6ae1af8b5ab1c053"
+source = "git+https://github.com/deltarocks/jrsonnet.git?rev=b9d891c46e9e7d87e9aeb0765b44c416bae7645b#b9d891c46e9e7d87e9aeb0765b44c416bae7645b"
 dependencies = [
  "jrsonnet-gcmodule",
  "jrsonnet-interner",
@@ -645,7 +645,7 @@ dependencies = [
 [[package]]
 name = "jrsonnet-ir-parser"
 version = "0.5.0-pre99"
-source = "git+https://github.com/CertainLach/jrsonnet.git?rev=c7e3e2e54cd3663af66eec3c6ae1af8b5ab1c053#c7e3e2e54cd3663af66eec3c6ae1af8b5ab1c053"
+source = "git+https://github.com/deltarocks/jrsonnet.git?rev=b9d891c46e9e7d87e9aeb0765b44c416bae7645b#b9d891c46e9e7d87e9aeb0765b44c416bae7645b"
 dependencies = [
  "insta",
  "jrsonnet-gcmodule",
@@ -656,7 +656,7 @@ dependencies = [
 [[package]]
 name = "jrsonnet-lexer"
 version = "0.5.0-pre99"
-source = "git+https://github.com/CertainLach/jrsonnet.git?rev=c7e3e2e54cd3663af66eec3c6ae1af8b5ab1c053#c7e3e2e54cd3663af66eec3c6ae1af8b5ab1c053"
+source = "git+https://github.com/deltarocks/jrsonnet.git?rev=b9d891c46e9e7d87e9aeb0765b44c416bae7645b#b9d891c46e9e7d87e9aeb0765b44c416bae7645b"
 dependencies = [
  "logos",
 ]
@@ -664,18 +664,18 @@ dependencies = [
 [[package]]
 name = "jrsonnet-macros"
 version = "0.5.0-pre99"
-source = "git+https://github.com/CertainLach/jrsonnet.git?rev=c7e3e2e54cd3663af66eec3c6ae1af8b5ab1c053#c7e3e2e54cd3663af66eec3c6ae1af8b5ab1c053"
+source = "git+https://github.com/deltarocks/jrsonnet.git?rev=b9d891c46e9e7d87e9aeb0765b44c416bae7645b#b9d891c46e9e7d87e9aeb0765b44c416bae7645b"
 dependencies = [
  "proc-macro2",
  "quote",
- "syn",
+ "syn 3.0.6",
  "syn-dissect-closure",
 ]
 
 [[package]]
 name = "jrsonnet-stdlib"
 version = "0.5.0-pre99"
-source = "git+https://github.com/CertainLach/jrsonnet.git?rev=c7e3e2e54cd3663af66eec3c6ae1af8b5ab1c053#c7e3e2e54cd3663af66eec3c6ae1af8b5ab1c053"
+source = "git+https://github.com/deltarocks/jrsonnet.git?rev=b9d891c46e9e7d87e9aeb0765b44c416bae7645b#b9d891c46e9e7d87e9aeb0765b44c416bae7645b"
 dependencies = [
  "base64",
  "hex",
@@ -694,7 +694,7 @@ dependencies = [
 [[package]]
 name = "jrsonnet-types"
 version = "0.5.0-pre99"
-source = "git+https://github.com/CertainLach/jrsonnet.git?rev=c7e3e2e54cd3663af66eec3c6ae1af8b5ab1c053#c7e3e2e54cd3663af66eec3c6ae1af8b5ab1c053"
+source = "git+https://github.com/deltarocks/jrsonnet.git?rev=b9d891c46e9e7d87e9aeb0765b44c416bae7645b#b9d891c46e9e7d87e9aeb0765b44c416bae7645b"
 dependencies = [
  "jrsonnet-gcmodule",
  "peg",
@@ -764,7 +764,7 @@ dependencies = [
  "quote",
  "regex-automata",
  "regex-syntax",
- "syn",
+ "syn 2.0.118",
 ]
 
 [[package]]
@@ -790,9 +790,9 @@ checksum = "cf8baf1c55e62ffcace7a9f06f4bd9cd3f0c4beb022d3b367256b91b87513d98"
 
 [[package]]
 name = "num-bigint"
-version = "0.4.8"
+version = "0.5.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c89e69e7e0f03bea5ef08013795c25018e101932225a656383bd384495ecc367"
+checksum = "93e7820bc0a80a0238e650327316f929ba18d5be054b647490a3a6a339f3e7c0"
 dependencies = [
  "num-integer",
  "num-traits",
@@ -853,7 +853,7 @@ dependencies = [
  "proc-macro2",
  "proc-macro2-diagnostics",
  "quote",
- "syn",
+ "syn 2.0.118",
 ]
 
 [[package]]
@@ -930,7 +930,7 @@ checksum = "af066a9c399a26e020ada66a034357a868728e72cd426f3adcd35f80d88d88c8"
 dependencies = [
  "proc-macro2",
  "quote",
- "syn",
+ "syn 2.0.118",
  "version_check",
  "yansi",
 ]
@@ -1071,23 +1071,21 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "9a8e94ea7f378bd32cbbd37198a4a91436180c5bb472411e48b5ec2e2124ae9e"
 dependencies = [
  "serde_core",
- "serde_derive",
 ]
 
 [[package]]
 name = "serde-saphyr"
-version = "0.0.27"
+version = "0.0.29"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "5897b4c3faadadd35fdb6689f015641f3bc481d5adaaac56231ea15aeb243db3"
+checksum = "7bd22781911de0ca6debda95f073c8f18bec65d1a94f1fa9573f3102e514cea4"
 dependencies = [
  "ahash",
  "annotate-snippets",
- "base64",
  "encoding_rs_io",
  "getrandom 0.3.4",
  "granit-parser",
  "num-traits",
- "serde",
+ "serde_core",
  "smallvec",
 ]
 
@@ -1108,7 +1106,7 @@ checksum = "d540f220d3187173da220f885ab66608367b6574e925011a9353e4badda91d79"
 dependencies = [
  "proc-macro2",
  "quote",
- "syn",
+ "syn 2.0.118",
 ]
 
 [[package]]
@@ -1230,14 +1228,25 @@ dependencies = [
 ]
 
 [[package]]
-name = "syn-dissect-closure"
-version = "0.1.0"
+name = "syn"
+version = "3.0.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "343bae741672e4b94421cbe93f9794ba9a061434272f7e3a29ff43be26be3ac9"
+checksum = "8593e8e72159ed2257d083c7a454a85cbf854f37a0966d8d483aff8c8a3ebcee"
 dependencies = [
  "proc-macro2",
  "quote",
- "syn",
+ "unicode-ident",
+]
+
+[[package]]
+name = "syn-dissect-closure"
+version = "0.2.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "fc40fbf41f68a18ea0152c4e22ce250668bee35080cc4b665827af7730fd69b8"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn 3.0.6",
 ]
 
 [[package]]
@@ -1248,7 +1257,7 @@ checksum = "728a70f3dbaf5bab7f0c4b1ac8d7ae5ea60a4b5549c8a5914361c99147a709d2"
 dependencies = [
  "proc-macro2",
  "quote",
- "syn",
+ "syn 2.0.118",
 ]
 
 [[package]]
@@ -1281,7 +1290,7 @@ checksum = "ebc4ee7f67670e9b64d05fa4253e753e016c6c95ff35b89b7941d6b856dec1d5"
 dependencies = [
  "proc-macro2",
  "quote",
- "syn",
+ "syn 2.0.118",
 ]
 
 [[package]]
@@ -1393,7 +1402,7 @@ dependencies = [
  "bumpalo",
  "proc-macro2",
  "quote",
- "syn",
+ "syn 2.0.118",
  "wasm-bindgen-shared",
 ]
 
@@ -1467,7 +1476,7 @@ checksum = "de844c262c8848816172cef550288e7dc6c7b7814b4ee56b3e1553f275f1858e"
 dependencies = [
  "proc-macro2",
  "quote",
- "syn",
+ "syn 2.0.118",
  "synstructure",
 ]
 
@@ -1488,7 +1497,7 @@ checksum = "e2e817b7b52d0c7358d3246da9d69935ebb18116b2b102b4230dac079b4862f5"
 dependencies = [
  "proc-macro2",
  "quote",
- "syn",
+ "syn 2.0.118",
 ]
 
 [[package]]
@@ -1508,7 +1517,7 @@ checksum = "11532158c46691caf0f2593ea8358fed6bbf68a0315e80aae9bd41fbade684a1"
 dependencies = [
  "proc-macro2",
  "quote",
- "syn",
+ "syn 2.0.118",
  "synstructure",
 ]
 
@@ -1542,7 +1551,7 @@ checksum = "625dc425cab0dca6dc3c3319506e6593dcb08a9f387ea3b284dbd52a92c40555"
 dependencies = [
  "proc-macro2",
  "quote",
- "syn",
+ "syn 2.0.118",
 ]
 
 [[package]]

@@ -59,7 +59,7 @@ func TestInvalidUTF8Inputs(t *testing.T) {
 	if err != nil {
 		t.Fatalf("EvaluateSnippet error: %v", err)
 	}
-	if want := "[\n    \"\uFFFD\",\n    \"\uFFFD\"\n]\n"; out != want {
+	if want := "[\n   \"\uFFFD\",\n   \"\uFFFD\"\n]\n"; out != want {
 		t.Errorf("got %q, want %q", out, want)
 	}
 

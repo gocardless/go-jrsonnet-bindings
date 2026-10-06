@@ -588,10 +588,10 @@ func TestEvaluateSnippetMultiFields(t *testing.T) {
 	}
 	// Each field is manifested independently as JSON, with a trailing newline
 	// per file by default (matching go-jsonnet).
-	if got, want := out["a.json"], "{\n    \"x\": 1\n}\n"; got != want {
+	if got, want := out["a.json"], "{\n   \"x\": 1\n}\n"; got != want {
 		t.Errorf("a.json = %q, want %q", got, want)
 	}
-	if got, want := out["b.json"], "{\n    \"y\": 2\n}\n"; got != want {
+	if got, want := out["b.json"], "{\n   \"y\": 2\n}\n"; got != want {
 		t.Errorf("b.json = %q, want %q", got, want)
 	}
 }
@@ -610,7 +610,7 @@ func TestEvaluateFileMulti(t *testing.T) {
 	if len(out) != 2 {
 		t.Fatalf("expected 2 files, got %d: %v", len(out), out)
 	}
-	if got, want := out["a.json"], "{\n    \"x\": 1\n}\n"; got != want {
+	if got, want := out["a.json"], "{\n   \"x\": 1\n}\n"; got != want {
 		t.Errorf("a.json = %q, want %q", got, want)
 	}
 }
@@ -667,7 +667,7 @@ func TestEvaluateSnippetMultiNoTrailingNewline(t *testing.T) {
 	if err != nil {
 		t.Fatalf("EvaluateSnippetMulti error: %v", err)
 	}
-	if got, want := out["a.json"], "{\n    \"x\": 1\n}"; got != want {
+	if got, want := out["a.json"], "{\n   \"x\": 1\n}"; got != want {
 		t.Errorf("a.json = %q, want %q", got, want)
 	}
 }
@@ -805,7 +805,7 @@ func TestEvaluateSnippetStreamNoTrailingNewline(t *testing.T) {
 	if err != nil {
 		t.Fatalf("EvaluateSnippetStream error: %v", err)
 	}
-	if want := []string{"{\n    \"x\": 1\n}", "{\n    \"y\": 2\n}"}; !slices.Equal(out, want) {
+	if want := []string{"{\n   \"x\": 1\n}", "{\n   \"y\": 2\n}"}; !slices.Equal(out, want) {
 		t.Errorf("stream = %q, want %q", out, want)
 	}
 }

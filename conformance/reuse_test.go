@@ -19,8 +19,14 @@ func TestFilesAndReuse(t *testing.T) {
 	}
 	extVarFile := write("ext.jsonnet", `std.extVar("k")`)
 	nativeFile := write("native.jsonnet", `local f = std.native("f"); if f == null then "none" else f()`)
-	thisFile := write("this.jsonnet", `std.thisFile`)
+	realThisFile := write("this.jsonnet", `std.thisFile`)
 	invalidFile := write("invalid.jsonnet", "'\xff'")
+	// Evaluate this.jsonnet through a symlink, so std.thisFile differs between
+	// the engines on every OS.
+	thisFile := filepath.Join(dir, "link.jsonnet")
+	if err := os.Symlink(realThisFile, thisFile); err != nil {
+		t.Fatal(err)
+	}
 	canonicalThisFile, err := filepath.EvalSymlinks(thisFile)
 	if err != nil {
 		t.Fatal(err)

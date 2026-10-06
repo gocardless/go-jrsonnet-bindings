@@ -200,8 +200,6 @@ result, _ := vm.EvaluateSnippet("test.jsonnet", `function(env, port) {
 | `EvaluateSnippetStream(filename, snippet string) ([]string, error)` | Evaluate a snippet in stream mode (top-level array → ordered outputs) |
 | `EvaluateFileStream(filename string) ([]string, error)` | Evaluate a file in stream mode |
 
-> **Limitations:** multi keys and stream/multi tokens can't contain a literal NUL byte, multi field names must be non-empty, and an empty stream document terminates the stream early. These mirror upstream jrsonnet's own libjsonnet multi/stream bindings.
-
 ### Options (passed to `New`)
 
 | Option | Description |

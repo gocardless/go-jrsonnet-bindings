@@ -17,7 +17,7 @@ use jrsonnet_evaluator::{
     Val,
 };
 
-use crate::{input::GoStr, VM};
+use crate::{input::GoStr, result::guard, VM};
 
 /// Go native function callback type.
 ///
@@ -119,15 +119,17 @@ pub unsafe extern "C" fn jrsonnet_go_native_callback(
     ctx: usize,
     params_json: GoStr,
 ) {
-    let Some(name) = name.as_str() else { return };
-    // Go marshals a nil slice as null.
-    let params: Vec<String> = serde_json::from_slice::<Option<_>>(params_json.as_bytes())
-        .ok()
-        .flatten()
-        .unwrap_or_default();
-    vm.ctx.add_native(
-        name,
-        #[allow(deprecated)]
-        NativeCallback::new(params, GoNativeCallbackHandler { ctx, cb }),
-    );
+    guard(drop, || {
+        let Some(name) = name.as_str() else { return };
+        // Go marshals a nil slice as null.
+        let params: Vec<String> = serde_json::from_slice::<Option<_>>(params_json.as_bytes())
+            .ok()
+            .flatten()
+            .unwrap_or_default();
+        vm.ctx.add_native(
+            name,
+            #[allow(deprecated)]
+            NativeCallback::new(params, GoNativeCallbackHandler { ctx, cb }),
+        );
+    })
 }

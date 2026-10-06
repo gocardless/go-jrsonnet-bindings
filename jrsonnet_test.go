@@ -3,6 +3,7 @@ package jrsonnet
 import (
 	"errors"
 	"fmt"
+	"maps"
 	"path/filepath"
 	"runtime"
 	"slices"
@@ -716,13 +717,12 @@ func TestEvaluateSnippetMultiEmptyFieldName(t *testing.T) {
 	}
 	defer vm.Close()
 
-	if _, err := vm.EvaluateSnippetMulti("m.jsonnet", `{"": "x"}`); err == nil {
-		t.Fatal("expected error for empty field name, got nil")
-	} else {
-		var evalErr *EvaluationError
-		if !errors.As(err, &evalErr) {
-			t.Errorf("expected *EvaluationError, got %T: %v", err, err)
-		}
+	out, err := vm.EvaluateSnippetMulti("m.jsonnet", `{"": "x"}`)
+	if err != nil {
+		t.Fatalf("EvaluateSnippetMulti error: %v", err)
+	}
+	if want := map[string]string{"": "\"x\"\n"}; !maps.Equal(out, want) {
+		t.Errorf("multi = %q, want %q", out, want)
 	}
 }
 

@@ -15,7 +15,7 @@ use jrsonnet_evaluator::{
 use jrsonnet_gcmodule::Acyclic;
 use jrsonnet_ir::{SourceDirectory, SourceFile, SourcePath};
 
-use crate::VM;
+use crate::{result::guard, VM};
 
 /// Go import callback function pointer type.
 ///
@@ -166,9 +166,11 @@ pub unsafe extern "C" fn jrsonnet_go_import_callback(
     cb: GoImportCallback,
     ctx: usize,
 ) {
-    vm.replace_import_resolver(GoImportResolver {
-        cb,
-        ctx,
-        out: RefCell::new(HashMap::new()),
-    });
+    guard(drop, || {
+        vm.replace_import_resolver(GoImportResolver {
+            cb,
+            ctx,
+            out: RefCell::new(HashMap::new()),
+        });
+    })
 }

@@ -23,6 +23,7 @@ type config struct {
 	trailingNewline bool
 	jpaths          []string
 	importer        ImportFunc
+	gcInterval      uint
 }
 
 func newConfig(opts []Option) (*config, error) {
@@ -94,6 +95,21 @@ func WithJPath(paths ...string) Option {
 			}
 		}
 		c.jpaths = append(c.jpaths, paths...)
+		return nil
+	})
+}
+
+// WithGCInterval makes the VM collect reference cycles after every n
+// evaluations, successful or not. 0, the default, disables it.
+//
+// jrsonnet frees most values by reference counting, but never collects
+// cycles, such as those of local functions, by itself. Without collecting
+// them, a VM that's evaluated many times keeps growing until Close. The cost
+// of a collection grows with the number of objects alive on the VM, which
+// includes the values cached for evaluated files.
+func WithGCInterval(n uint) Option {
+	return optionFunc(func(c *config) error {
+		c.gcInterval = n
 		return nil
 	})
 }

@@ -93,6 +93,7 @@ func (v *VM) evaluate(file bool, filename, snippet string, mode C.int, decode fu
 	var r C.struct_GoResult
 	err := v.withThread(func() {
 		r = C.jrsonnet_go_evaluate(v.vm, C.bool(file), filename, snippet, mode)
+		v.countEvaluation()
 	})
 	if err != nil {
 		return err
@@ -108,6 +109,28 @@ func (v *VM) evaluate(file bool, filename, snippet string, mode C.int, decode fu
 	default:
 		return &EvaluationError{msg: string(data)}
 	}
+}
+
+// countEvaluation collects reference cycles every gcInterval evaluations.
+// Call it on the VM's thread after each evaluation.
+func (v *VM) countEvaluation() {
+	if v.gcInterval == 0 {
+		return
+	}
+	v.evaluations++
+	if v.evaluations >= v.gcInterval {
+		v.evaluations = 0
+		C.jrsonnet_go_gc_collect()
+	}
+}
+
+// trackedObjects returns the number of objects the VM's cycle collector
+// tracks. Used by tests.
+func (v *VM) trackedObjects() (n int, err error) {
+	err = v.withThread(func() {
+		n = int(C.jrsonnet_go_gc_count_tracked())
+	})
+	return n, err
 }
 
 var errMalformedResult = &EvaluationError{msg: "jrsonnet: malformed multi or stream result"}

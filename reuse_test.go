@@ -55,8 +55,8 @@ func TestReuseSeesLateNativeFunctions(t *testing.T) {
 	}
 }
 
-// jrsonnet leaves a file that failed static analysis marked as being
-// evaluated, so evaluating it again used to report infinite recursion.
+// A file that failed static analysis fails the same way when evaluated again,
+// rather than being reported as infinite recursion (deltarocks/jrsonnet#239).
 func TestReuseAfterStaticError(t *testing.T) {
 	file := writeFile(t, t.TempDir(), "bad.jsonnet", `local x = undefinedvar; x`)
 	vm := newTestVM(t)
@@ -66,4 +66,30 @@ func TestReuseAfterStaticError(t *testing.T) {
 			t.Errorf("evaluation %d: got %v, want the undefined variable error", i, err)
 		}
 	}
+}
+
+// An error doesn't drop the values cached for files, as in go-jsonnet.
+func TestReuseKeepsValuesAfterError(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, dir, "count.libsonnet", `std.native("count")()`)
+	bad := writeFile(t, dir, "bad.jsonnet", `local x = undefinedvar; x`)
+	vm := newTestVM(t, WithJPath(dir))
+	n := 0
+	vm.RegisterNativeFunction("count", nil, func([]any) (any, error) { n++; return float64(n), nil })
+
+	importCount := func() {
+		t.Helper()
+		if out, err := vm.EvaluateSnippet("t.jsonnet", `import "count.libsonnet"`); err != nil || out != "1\n" {
+			t.Errorf("import: got %q, %v, want the cached value 1", out, err)
+		}
+	}
+	importCount()
+	if _, err := vm.EvaluateFile(bad); err == nil {
+		t.Error("static error: got nil error")
+	}
+	importCount()
+	if _, err := vm.EvaluateSnippet("t.jsonnet", `error "boom"`); err == nil {
+		t.Error("runtime error: got nil error")
+	}
+	importCount()
 }

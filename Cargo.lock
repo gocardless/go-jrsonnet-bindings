@@ -577,7 +577,7 @@ checksum = "8f42a60cbdf9a97f5d2305f08a87dc4e09308d1276d28c869c684d7777685682"
 [[package]]
 name = "jrsonnet-evaluator"
 version = "0.5.0-pre99"
-source = "git+https://github.com/deltarocks/jrsonnet.git?rev=b9d891c46e9e7d87e9aeb0765b44c416bae7645b#b9d891c46e9e7d87e9aeb0765b44c416bae7645b"
+source = "git+https://github.com/deltarocks/jrsonnet.git?rev=a62fc6b07a0fe7628e7c9da95478f380b89c3213#a62fc6b07a0fe7628e7c9da95478f380b89c3213"
 dependencies = [
  "drop_bomb",
  "educe",
@@ -634,7 +634,7 @@ dependencies = [
 [[package]]
 name = "jrsonnet-interner"
 version = "0.5.0-pre99"
-source = "git+https://github.com/deltarocks/jrsonnet.git?rev=b9d891c46e9e7d87e9aeb0765b44c416bae7645b#b9d891c46e9e7d87e9aeb0765b44c416bae7645b"
+source = "git+https://github.com/deltarocks/jrsonnet.git?rev=a62fc6b07a0fe7628e7c9da95478f380b89c3213#a62fc6b07a0fe7628e7c9da95478f380b89c3213"
 dependencies = [
  "hashbrown",
  "jrsonnet-gcmodule",
@@ -644,7 +644,7 @@ dependencies = [
 [[package]]
 name = "jrsonnet-ir"
 version = "0.5.0-pre99"
-source = "git+https://github.com/deltarocks/jrsonnet.git?rev=b9d891c46e9e7d87e9aeb0765b44c416bae7645b#b9d891c46e9e7d87e9aeb0765b44c416bae7645b"
+source = "git+https://github.com/deltarocks/jrsonnet.git?rev=a62fc6b07a0fe7628e7c9da95478f380b89c3213#a62fc6b07a0fe7628e7c9da95478f380b89c3213"
 dependencies = [
  "jrsonnet-gcmodule",
  "jrsonnet-interner",
@@ -657,7 +657,7 @@ dependencies = [
 [[package]]
 name = "jrsonnet-ir-parser"
 version = "0.5.0-pre99"
-source = "git+https://github.com/deltarocks/jrsonnet.git?rev=b9d891c46e9e7d87e9aeb0765b44c416bae7645b#b9d891c46e9e7d87e9aeb0765b44c416bae7645b"
+source = "git+https://github.com/deltarocks/jrsonnet.git?rev=a62fc6b07a0fe7628e7c9da95478f380b89c3213#a62fc6b07a0fe7628e7c9da95478f380b89c3213"
 dependencies = [
  "insta",
  "jrsonnet-gcmodule",
@@ -668,7 +668,7 @@ dependencies = [
 [[package]]
 name = "jrsonnet-lexer"
 version = "0.5.0-pre99"
-source = "git+https://github.com/deltarocks/jrsonnet.git?rev=b9d891c46e9e7d87e9aeb0765b44c416bae7645b#b9d891c46e9e7d87e9aeb0765b44c416bae7645b"
+source = "git+https://github.com/deltarocks/jrsonnet.git?rev=a62fc6b07a0fe7628e7c9da95478f380b89c3213#a62fc6b07a0fe7628e7c9da95478f380b89c3213"
 dependencies = [
  "logos",
 ]
@@ -676,7 +676,7 @@ dependencies = [
 [[package]]
 name = "jrsonnet-macros"
 version = "0.5.0-pre99"
-source = "git+https://github.com/deltarocks/jrsonnet.git?rev=b9d891c46e9e7d87e9aeb0765b44c416bae7645b#b9d891c46e9e7d87e9aeb0765b44c416bae7645b"
+source = "git+https://github.com/deltarocks/jrsonnet.git?rev=a62fc6b07a0fe7628e7c9da95478f380b89c3213#a62fc6b07a0fe7628e7c9da95478f380b89c3213"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -687,7 +687,7 @@ dependencies = [
 [[package]]
 name = "jrsonnet-stdlib"
 version = "0.5.0-pre99"
-source = "git+https://github.com/deltarocks/jrsonnet.git?rev=b9d891c46e9e7d87e9aeb0765b44c416bae7645b#b9d891c46e9e7d87e9aeb0765b44c416bae7645b"
+source = "git+https://github.com/deltarocks/jrsonnet.git?rev=a62fc6b07a0fe7628e7c9da95478f380b89c3213#a62fc6b07a0fe7628e7c9da95478f380b89c3213"
 dependencies = [
  "base64",
  "hex",
@@ -706,7 +706,7 @@ dependencies = [
 [[package]]
 name = "jrsonnet-types"
 version = "0.5.0-pre99"
-source = "git+https://github.com/deltarocks/jrsonnet.git?rev=b9d891c46e9e7d87e9aeb0765b44c416bae7645b#b9d891c46e9e7d87e9aeb0765b44c416bae7645b"
+source = "git+https://github.com/deltarocks/jrsonnet.git?rev=a62fc6b07a0fe7628e7c9da95478f380b89c3213#a62fc6b07a0fe7628e7c9da95478f380b89c3213"
 dependencies = [
  "jrsonnet-gcmodule",
  "peg",

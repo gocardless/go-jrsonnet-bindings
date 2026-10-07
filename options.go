@@ -103,7 +103,7 @@ func WithJPath(paths ...string) Option {
 // evaluations, successful or not. 0, the default, disables it.
 //
 // jrsonnet frees most values by reference counting, but never collects
-// cycles, such as those of local functions, by itself. Without collecting
+// cycles, such as those created by objects, by itself. Without collecting
 // them, a VM that's evaluated many times keeps growing until Close. The cost
 // of a collection grows with the number of objects alive on the VM, which
 // includes the values cached for evaluated files.

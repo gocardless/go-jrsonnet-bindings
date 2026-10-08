@@ -41,6 +41,18 @@ func TestReuseSeesExtVarChanges(t *testing.T) {
 	}
 }
 
+// Collecting cycles must keep the values cached for imported files.
+func TestReuseWithGCInterval(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, dir, "lib.libsonnet", `{ a: 1, b: self.a + 1 }`)
+	vm := newTestVM(t, WithJPath(dir), WithGCInterval(1))
+	for i := range 3 {
+		if out, err := vm.EvaluateSnippet("t.jsonnet", `(import "lib.libsonnet").b`); err != nil || out != "2\n" {
+			t.Errorf("evaluation %d: got %q, %v", i, out, err)
+		}
+	}
+}
+
 func TestReuseSeesLateNativeFunctions(t *testing.T) {
 	dir := t.TempDir()
 	file := writeFile(t, dir, "main.jsonnet", `local f = std.native("f"); if f == null then "none" else f()`)

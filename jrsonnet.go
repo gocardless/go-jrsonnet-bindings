@@ -43,8 +43,7 @@ type VM struct {
 	closed bool
 
 	// gcInterval is the number of evaluations between cycle collections, 0
-	// for none. evaluations counts them since the last one, and is only used
-	// on the VM's thread.
+	// for none. evaluations counts them, on the VM's thread.
 	gcInterval  uint
 	evaluations uint
 

@@ -159,10 +159,3 @@ pub extern "C" fn jrsonnet_go_gc_collect() {
         let _ = jrsonnet_gcmodule::collect_thread_cycles();
     })
 }
-
-/// Return the number of objects the thread's cycle collector tracks, or 0 if
-/// that panics. Used by tests.
-#[no_mangle]
-pub extern "C" fn jrsonnet_go_gc_count_tracked() -> usize {
-    guard(|_| 0, jrsonnet_gcmodule::count_thread_tracked)
-}

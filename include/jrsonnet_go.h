@@ -109,12 +109,6 @@ typedef int (*GoNativeCallback)(uintptr_t ctx,
  void jrsonnet_go_gc_collect(void);
 
 /**
- * Return the number of objects the thread's cycle collector tracks, or 0 if
- * that panics. Used by tests.
- */
- uintptr_t jrsonnet_go_gc_count_tracked(void);
-
-/**
  * Evaluates the file `filename` if `file` is true, else `snippet`, and
  * manifests the result in `mode`, a `JRSONNET_GO_MODE_*` constant. A file
  * path is used byte for byte. A snippet and its filename are decoded as

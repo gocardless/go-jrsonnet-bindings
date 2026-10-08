@@ -113,8 +113,6 @@ typedef int (*GoNativeCallback)(uintptr_t ctx,
  * manifests the result in `mode`, a `JRSONNET_GO_MODE_*` constant. A file
  * path is used byte for byte. A snippet and its filename are decoded as
  * go-jsonnet does (see [`GoStr::as_str_lossy`]).
- *
- * An error flushes the values cached for files (see [`VM::flush_values`]).
  */
 
 struct GoResult jrsonnet_go_evaluate(struct VM *vm,

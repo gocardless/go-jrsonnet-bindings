@@ -10,8 +10,8 @@ use std::{path::PathBuf, rc::Rc};
 
 use jrsonnet_evaluator::{
     manifest::ManifestFormat,
-    stack::set_stack_depth_limit,
     rustc_hash::FxHashMap,
+    stack::set_stack_depth_limit,
     tla::TlaArg,
     trace::{CompactFormat, PathResolver, TraceFormat},
     AsPathLike, FileImportResolver, IStr, ImportResolver, Result, SourcePath, State,

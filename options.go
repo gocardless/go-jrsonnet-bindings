@@ -100,12 +100,7 @@ func WithJPath(paths ...string) Option {
 }
 
 // WithGCInterval makes the VM collect reference cycles after every n
-// evaluations, failed ones included. 0, the default, disables it.
-//
-// jrsonnet never collects cycles, such as those created by objects, by
-// itself, so a VM that's evaluated many times keeps growing until Close. A
-// collection takes longer the more objects are alive on the VM, including the
-// values cached for evaluated files.
+// evaluations. 0 (default) disables it.
 func WithGCInterval(n uint) Option {
 	return optionFunc(func(c *config) error {
 		c.gcInterval = n

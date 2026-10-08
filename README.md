@@ -214,10 +214,7 @@ result, _ := vm.EvaluateSnippet("test.jsonnet", `function(env, port) {
 
 jrsonnet never collects reference cycles (created by objects, for example) by
 itself, so a VM evaluated many times keeps growing until `Close`.
-`WithGCInterval` collects them every `n` evaluations, failed ones included.
-A collection takes longer the more objects are alive on the VM, including the
-values cached for evaluated files, so pick an interval that balances memory
-against time spent collecting.
+`WithGCInterval` collects them every `n` evaluations.
 
 ### Variables
 

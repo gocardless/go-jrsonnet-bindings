@@ -249,6 +249,10 @@ Error messages differ in wording, and the tests don't compare them.
 - `std.thisFile` in a file resolves symlinks, and is relative to the working
   directory at `New()` unless that would climb to the root. Error messages
   show absolute paths with symlinks resolved. go-jsonnet shows paths as given.
+- The value of a file passed to `EvaluateFile` is cached like an imported
+  file's, so evaluating it again reuses it. go-jsonnet evaluates the file
+  again, so side effects such as `std.trace` and native function calls run
+  again too.
 - Importing a file that isn't valid UTF-8 with `import` or `importstr` is an
   error, as in jrsonnet. go-jsonnet replaces each invalid byte with U+FFFD.
 - A native function may return anything `encoding/json` can marshal, such as

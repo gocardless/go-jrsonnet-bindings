@@ -109,6 +109,16 @@ func TestFilesAndReuse(t *testing.T) {
 			want: errAny,
 		},
 		{
+			name: "file evaluated twice",
+			setup: func(e engine) {
+				n := 0
+				e.Native("count", nil, func([]any) (any, error) { n++; return float64(n), nil })
+			},
+			eval: evalTwice(countFile, func(engine) {}),
+			diff: "the value of a file passed to EvaluateFile is cached",
+			want: []string{"1\n", "1\n"},
+		},
+		{
 			name: "std.thisFile",
 			eval: func(e engine) (any, error) { return e.File(thisFile) },
 			diff: "std.thisFile resolves symlinks",

@@ -1,10 +1,13 @@
 INCLUDE_DIR := include
 CBINDGEN := $(HOME)/.cargo/bin/cbindgen
 
-.PHONY: rust header test clean
+.PHONY: rust rust-all header test clean
 
 rust:
 	bash scripts/build-rust.sh
+
+rust-all:
+	bash scripts/build-rust.sh all
 
 header:
 	$(CBINDGEN) --crate jrsonnet-go --output $(INCLUDE_DIR)/jrsonnet_go.h

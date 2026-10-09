@@ -24,7 +24,7 @@ This package provides a Go-native API for jrsonnet via CGo. Instead of using jrs
 
 ### Build host
 
-The build script (`scripts/build-rust.sh`) unconditionally builds static libraries for all supported targets:
+`scripts/build-rust.sh` (`make rust`) builds the static library for the host's native target only. `scripts/build-rust.sh all` (`make rust-all`) builds every supported target for the host OS — on macOS:
 
 - `aarch64-apple-darwin`
 - `aarch64-unknown-linux-gnu`
@@ -32,7 +32,9 @@ The build script (`scripts/build-rust.sh`) unconditionally builds static librari
 - `x86_64-unknown-linux-gnu`
 - `x86_64-unknown-linux-musl`
 
-It is currently macOS-only: the script relies on Homebrew-installed cross-toolchains and will not run on Linux as-is. On macOS:
+On Linux, `all` builds the four Linux targets. Explicit target triples can also be passed (`scripts/build-rust.sh x86_64-unknown-linux-musl`).
+
+Setting up the toolchains (rustup targets, cross C compilers/linkers, `musl-gcc`) is up to you; the script only uses what is on `PATH`, plus the usual `CARGO_TARGET_<TRIPLE>_LINKER` / `CC_<triple>` overrides. On macOS, the Homebrew cross-toolchains below are picked up automatically:
 
 ```bash
 brew tap messense/macos-cross-toolchains
@@ -49,8 +51,11 @@ rustup target install \
 ## Building
 
 ```bash
-# Build the Rust staticlibs for all supported targets
+# Build the Rust staticlib for the host target
 make rust
+
+# Build the Rust staticlibs for all supported targets
+make rust-all
 
 # Regenerate the C header (only needed after Rust API changes)
 make header

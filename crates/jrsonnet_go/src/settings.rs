@@ -8,9 +8,11 @@ use jrsonnet_evaluator::{
 use crate::{result::guard, VM};
 
 /// go-jsonnet's default. jrsonnet's library defaults to 200, and its CLI to 512.
+/// cbindgen:ignore
 pub(crate) const DEFAULT_MAX_STACK: usize = 500;
 
 /// go-jsonnet's default number of stack frames shown in an error.
+/// cbindgen:ignore
 pub(crate) const DEFAULT_MAX_TRACE: usize = 20;
 
 /// JSON indented with 3 spaces, like go-jsonnet and the jrsonnet CLI.

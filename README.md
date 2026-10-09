@@ -210,6 +210,11 @@ result, _ := vm.EvaluateSnippet("test.jsonnet", `function(env, port) {
 | `WithTrailingNewline(enabled bool)` | Append a newline to each output (default true) |
 | `WithJPath(paths ...string)` | Add library search paths (a later path wins) |
 | `WithImporter(fn ImportFunc)` | Set a custom import callback (can't be combined with `WithJPath`) |
+| `WithGCInterval(n uint)` | Collect reference cycles after every `n` evaluations (default 0 = only on `Close`); see below |
+
+jrsonnet never collects reference cycles (created by objects, for example) by
+itself, so a VM evaluated many times keeps growing until `Close`.
+`WithGCInterval` collects them every `n` evaluations.
 
 ### Variables
 

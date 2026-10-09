@@ -23,6 +23,7 @@ type config struct {
 	trailingNewline bool
 	jpaths          []string
 	importer        ImportFunc
+	gcInterval      uint
 }
 
 func newConfig(opts []Option) (*config, error) {
@@ -94,6 +95,15 @@ func WithJPath(paths ...string) Option {
 			}
 		}
 		c.jpaths = append(c.jpaths, paths...)
+		return nil
+	})
+}
+
+// WithGCInterval makes the VM collect reference cycles after every n
+// evaluations. 0 (default) disables it.
+func WithGCInterval(n uint) Option {
+	return optionFunc(func(c *config) error {
+		c.gcInterval = n
 		return nil
 	})
 }

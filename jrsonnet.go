@@ -42,6 +42,11 @@ type VM struct {
 	mu     sync.Mutex // protects closed and serialises sends on tasks
 	closed bool
 
+	// gcInterval is the number of evaluations between cycle collections, 0
+	// for none. evaluations counts them, on the VM's thread.
+	gcInterval  uint
+	evaluations uint
+
 	// cgo.Handle references for callback cleanup. The handle values are
 	// passed to Rust as opaque integers (uintptr_t), so there is no
 	// C-allocated context to free — only the handles themselves.
@@ -59,8 +64,9 @@ func New(opts ...Option) (*VM, error) {
 		return nil, err
 	}
 	v := &VM{
-		tasks:    make(chan vmTask),
-		finished: make(chan struct{}),
+		tasks:      make(chan vmTask),
+		finished:   make(chan struct{}),
+		gcInterval: c.gcInterval,
 	}
 
 	started := make(chan error, 1)

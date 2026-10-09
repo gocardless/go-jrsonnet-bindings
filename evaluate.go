@@ -93,6 +93,10 @@ func (v *VM) evaluate(file bool, filename, snippet string, mode C.int, decode fu
 	var r C.struct_GoResult
 	err := v.withThread(func() {
 		r = C.jrsonnet_go_evaluate(v.vm, C.bool(file), filename, snippet, mode)
+		v.evaluations++
+		if v.gcInterval > 0 && v.evaluations%v.gcInterval == 0 {
+			C.jrsonnet_go_gc_collect()
+		}
 	})
 	if err != nil {
 		return err

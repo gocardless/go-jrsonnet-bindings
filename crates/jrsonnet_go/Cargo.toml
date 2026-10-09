@@ -9,8 +9,8 @@ name = "jrsonnet_go"
 crate-type = ["staticlib"]
 
 [dependencies]
-jrsonnet-evaluator = { git = "https://github.com/deltarocks/jrsonnet.git", rev = "b9d891c46e9e7d87e9aeb0765b44c416bae7645b" }
-jrsonnet-ir = { git = "https://github.com/deltarocks/jrsonnet.git", rev = "b9d891c46e9e7d87e9aeb0765b44c416bae7645b" }
-jrsonnet-stdlib = { git = "https://github.com/deltarocks/jrsonnet.git", rev = "b9d891c46e9e7d87e9aeb0765b44c416bae7645b" }
+jrsonnet-evaluator = { git = "https://github.com/deltarocks/jrsonnet.git", rev = "a62fc6b07a0fe7628e7c9da95478f380b89c3213" }
+jrsonnet-ir = { git = "https://github.com/deltarocks/jrsonnet.git", rev = "a62fc6b07a0fe7628e7c9da95478f380b89c3213" }
+jrsonnet-stdlib = { git = "https://github.com/deltarocks/jrsonnet.git", rev = "a62fc6b07a0fe7628e7c9da95478f380b89c3213" }
 jrsonnet-gcmodule = "0.5.0"
 serde_json = "1.0"

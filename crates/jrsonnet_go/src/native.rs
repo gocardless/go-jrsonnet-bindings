@@ -94,9 +94,7 @@ impl NativeCallbackHandler for GoNativeCallbackHandler {
             .map_err(|e| Error::new(ErrorKind::RuntimeError(format!("utf-8: {e}").into())))?;
 
         if status != 0 {
-            return Err(Error::new(ErrorKind::RuntimeError(
-                result_str.into(),
-            )));
+            return Err(Error::new(ErrorKind::RuntimeError(result_str.into())));
         }
 
         serde_json::from_str(&result_str)

@@ -10,8 +10,8 @@ use std::{path::PathBuf, rc::Rc};
 
 use jrsonnet_evaluator::{
     manifest::ManifestFormat,
-    stack::set_stack_depth_limit,
     rustc_hash::FxHashMap,
+    stack::set_stack_depth_limit,
     tla::TlaArg,
     trace::{CompactFormat, PathResolver, TraceFormat},
     AsPathLike, FileImportResolver, IStr, ImportResolver, Result, SourcePath, State,
@@ -95,8 +95,7 @@ impl VM {
     /// keeps the resolver and what the resolver has cached.
     ///
     /// Call it when a file's value may have changed: after ext vars or native
-    /// functions change, and after an error, as jrsonnet may leave a failed
-    /// file marked as being evaluated.
+    /// functions change.
     pub(crate) fn flush_values(&mut self) {
         self.state = build_state(&self.ctx, &self.resolver);
     }

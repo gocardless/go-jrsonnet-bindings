@@ -4,6 +4,7 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"strconv"
 	"testing"
 )
 
@@ -21,6 +22,8 @@ func TestFilesAndReuse(t *testing.T) {
 	nativeFile := write("native.jsonnet", `local f = std.native("f"); if f == null then "none" else f()`)
 	realThisFile := write("this.jsonnet", `std.thisFile`)
 	invalidFile := write("invalid.jsonnet", "'\xff'")
+	staticErrorFile := write("static_error.jsonnet", `local x = undefinedvar; x`)
+	countFile := write("count.libsonnet", `std.native("count")()`)
 	// Evaluate this.jsonnet through a symlink, so std.thisFile differs between
 	// the engines on every OS.
 	thisFile := filepath.Join(dir, "link.jsonnet")
@@ -63,6 +66,27 @@ func TestFilesAndReuse(t *testing.T) {
 			eval: failedTwice(extVarFile, func(e engine) { e.ExtVar("k", "v") }),
 		},
 		{
+			name: "file failing static analysis evaluated twice",
+			eval: failedTwice(staticErrorFile, func(engine) {}),
+		},
+		{
+			// Imported, as go-jsonnet caches the values of imported files
+			// only.
+			name: "imported value kept across a failed evaluation",
+			setup: func(e engine) {
+				n := 0
+				e.Native("count", nil, func([]any) (any, error) { n++; return float64(n), nil })
+			},
+			eval: func(e engine) (any, error) {
+				code := "import " + strconv.Quote(countFile)
+				first, err1 := e.Snippet("case.jsonnet", code)
+				_, _ = e.File(staticErrorFile)
+				_, _ = e.Snippet("case.jsonnet", `error "boom"`)
+				second, err2 := e.Snippet("case.jsonnet", code)
+				return []string{first, second}, errors.Join(err1, err2)
+			},
+		},
+		{
 			name:  "ext var changed between evaluations",
 			setup: func(e engine) { e.ExtVar("k", "one") },
 			eval:  evalTwice(extVarFile, func(e engine) { e.ExtVar("k", "two") }),
@@ -83,6 +107,16 @@ func TestFilesAndReuse(t *testing.T) {
 			eval: func(e engine) (any, error) { return e.File(invalidFile) },
 			diff: "importing a file that isn't valid UTF-8 is an error",
 			want: errAny,
+		},
+		{
+			name: "file evaluated twice",
+			setup: func(e engine) {
+				n := 0
+				e.Native("count", nil, func([]any) (any, error) { n++; return float64(n), nil })
+			},
+			eval: evalTwice(countFile, func(engine) {}),
+			diff: "the value of a file passed to EvaluateFile is cached",
+			want: []string{"1\n", "1\n"},
 		},
 		{
 			name: "std.thisFile",

@@ -301,4 +301,10 @@ Callbacks (import and native functions) flow in reverse: Rust calls a C function
 
 ## License
 
-See upstream [jrsonnet](https://github.com/CertainLach/jrsonnet) for the evaluator license.
+MIT, the same as upstream [jrsonnet](https://github.com/CertainLach/jrsonnet). See [LICENSE](LICENSE).
+
+The static library `libjrsonnet_go.a` bundles jrsonnet and other Rust crates under their own
+permissive licenses. CI generates their notices with [cargo-about](https://github.com/EmbarkStudios/cargo-about)
+and ships them as `THIRD_PARTY_LICENSES` in each release tarball. The build fails if a dependency
+uses a license not allowed in `about.toml`. To generate the file locally:
+`cargo about generate about.hbs -o THIRD_PARTY_LICENSES`.

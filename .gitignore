@@ -3,3 +3,4 @@
 .DS_Store
 *.test
 *.out
+/THIRD_PARTY_LICENSES

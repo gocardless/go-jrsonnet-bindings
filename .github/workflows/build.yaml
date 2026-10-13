@@ -72,7 +72,7 @@ jobs:
       - if: matrix.target == 'x86_64-unknown-linux-gnu'
         name: Generate third-party licenses
         run: |
-          cargo install cargo-about --version 0.9.0 --locked
+          cargo install cargo-about --version 0.9.0 --locked --features cli
           cargo about generate about.hbs -o THIRD_PARTY_LICENSES
 
       - if: matrix.target == 'x86_64-unknown-linux-gnu'

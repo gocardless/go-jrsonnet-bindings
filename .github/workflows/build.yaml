@@ -67,6 +67,20 @@ jobs:
           cbindgen --crate jrsonnet-go --output include/jrsonnet_go.h
           git diff --exit-code include/jrsonnet_go.h
 
+      # Generate the notices for the crates bundled into libjrsonnet_go.a.
+      # Fails if a dependency uses a license not listed in about.toml.
+      - if: matrix.target == 'x86_64-unknown-linux-gnu'
+        name: Generate third-party licenses
+        run: |
+          cargo install cargo-about --version 0.9.0 --locked --features cli
+          cargo about generate about.hbs -o THIRD_PARTY_LICENSES
+
+      - if: matrix.target == 'x86_64-unknown-linux-gnu'
+        uses: actions/upload-artifact@v7
+        with:
+          name: third-party-licenses
+          path: THIRD_PARTY_LICENSES
+
       - name: Stage artifact
         run: |
           mkdir -p lib/${{ matrix.target }}
@@ -118,6 +132,11 @@ jobs:
         with:
           path: dist
 
+      # Only for LICENSE, which ships in each tarball.
+      - uses: actions/checkout@v6
+        with:
+          path: src
+
       - name: Assemble release tarball
         run: |
           mkdir -p out
@@ -126,6 +145,7 @@ jobs:
             staged="stage/${target}/lib/${target}"
             mkdir -p "${staged}"
             cp -v "${dir}/libjrsonnet_go.a" "${staged}/"
+            cp -v src/LICENSE dist/third-party-licenses/THIRD_PARTY_LICENSES "${staged}/"
             tar -czvf "out/libjrsonnet_go-${VERSION}-${target}.tar.gz" \
                 -C "stage/${target}" lib
           done

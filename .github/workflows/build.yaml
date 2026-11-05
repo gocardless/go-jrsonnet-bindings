@@ -14,6 +14,10 @@ name: Build
         type: string
         required: true
 
+# Jobs get a read-only token unless they ask for more.
+permissions:
+  contents: read
+
 jobs:
   libjrsonnet_go:
     name: Build libjrsonnet_go.a (${{ matrix.target }})
@@ -41,11 +45,23 @@ jobs:
             musl: true
 
     steps:
+      # workflow_dispatch can run on any branch, but releases come from master only.
+      - if: github.event_name == 'workflow_dispatch' && github.ref != 'refs/heads/master'
+        name: Check the release runs on master
+        run: |
+          echo "::error::releases run on master only, not ${GITHUB_REF}"
+          exit 1
+
       - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
 
       - uses: actions-rust-lang/setup-rust-toolchain@v1
         with:
           target: ${{ matrix.target }}
+          # Release builds don't restore the cache, so the published library and
+          # the cargo-about binary come from a clean build.
+          cache: ${{ github.event_name != 'workflow_dispatch' }}
 
       # musl-gcc targets the host arch; the cc-crate build scripts (stacker/psm)
       # pick it up via CC to assemble against musl rather than glibc.
@@ -110,9 +126,12 @@ jobs:
 
   release:
     name: Release
-    if: github.event_name == 'workflow_dispatch'
+    if: github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/master'
     needs: libjrsonnet_go
     runs-on: ubuntu-latest
+    # Required reviewers and the allowed branches for this environment are set
+    # in the repository settings.
+    environment: release
     permissions:
       contents: write
 
@@ -120,10 +139,16 @@ jobs:
       - name: Normalize and validate version
         env:
           RAW_VERSION: ${{ inputs.version }}
+          GH_TOKEN: ${{ github.token }}
         run: |
           VERSION="${RAW_VERSION#v}" # tolerate a typed leading v
           if [[ ! "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+([.-].+)?$ ]]; then
             echo "::error::invalid version '${RAW_VERSION}' (want e.g. 1.2.3)"
+            exit 1
+          fi
+          # The Go module proxy caches a tag forever, so never reuse one.
+          if gh api "repos/${GITHUB_REPOSITORY}/git/ref/tags/v${VERSION}" --silent 2>/dev/null; then
+            echo "::error::tag v${VERSION} already exists"
             exit 1
           fi
           echo "VERSION=${VERSION}" >> "$GITHUB_ENV"
@@ -136,6 +161,7 @@ jobs:
       - uses: actions/checkout@v6
         with:
           path: src
+          persist-credentials: false
 
       - name: Assemble release tarball
         run: |

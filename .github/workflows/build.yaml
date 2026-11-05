@@ -106,7 +106,7 @@ jobs:
       # The cgo search paths in jrsonnet.go only cover darwin and glibc. Only
       # consumers link the musl builds (see examples/).
       - if: ${{ !matrix.musl }}
-        uses: actions/setup-go@v6
+        uses: actions/setup-go@v7
         with:
           go-version-file: go.mod
           cache-dependency-path: conformance/go.sum

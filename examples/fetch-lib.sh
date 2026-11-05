@@ -10,9 +10,10 @@ set -euo pipefail
 # After extraction the archive lays out:  <dest-dir>/lib/<triple>/libjrsonnet_go.a
 # Point the linker at that directory with CGO_LDFLAGS=-L<dest-dir>/lib/<triple>.
 #
-# This is a generic template — adapt the download mechanism to however you
-# access releases (if the repo is private you will need to supply your own
-# authentication). Requires: curl, jq, tar, sha256sum/shasum.
+# This is a generic template, so adapt it to your build. It sends no
+# credentials, and GitHub rate limits unauthenticated API requests per IP
+# address. If your CI hits that limit, add an Authorization header to the curl
+# calls or use fetch-lib-gh.sh. Requires: curl, jq, tar, sha256sum/shasum.
 
 VERSION="${1:?usage: fetch-lib.sh <version> <triple> <dest-dir>}"
 TRIPLE="${2:?usage: fetch-lib.sh <version> <triple> <dest-dir>}"

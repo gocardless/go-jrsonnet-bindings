@@ -2,8 +2,8 @@
 set -euo pipefail
 
 # Alternative to fetch-lib.sh that uses the GitHub CLI (`gh`) instead of curl.
-# `gh` handles authentication (private repos included) via your existing login
-# or GH_TOKEN, and follows the signed asset redirect for you.
+# `gh` authenticates with your existing login or GH_TOKEN, and follows the
+# signed asset redirect for you.
 #
 #   ./fetch-lib-gh.sh <version> <rust-triple> <dest-dir>
 #   e.g. ./fetch-lib-gh.sh v1.2.3 x86_64-unknown-linux-gnu .jrsonnet

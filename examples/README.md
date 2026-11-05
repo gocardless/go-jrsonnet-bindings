@@ -13,7 +13,7 @@ your target platforms, and your image layout will all differ.
 |---|---|
 | `main.go` | Tiny program: create a VM, evaluate one snippet, print it. |
 | `fetch-lib.sh` | Download + verify + extract the prebuilt static lib for one target triple (curl + GitHub REST API). |
-| `fetch-lib-gh.sh` | Same, but via the `gh` CLI (handles auth for private repos). Interchangeable with `fetch-lib.sh`. |
+| `fetch-lib-gh.sh` | Same, but via the `gh` CLI, which authenticates with your login or `GH_TOKEN`. Interchangeable with `fetch-lib.sh`. |
 | `Makefile` | Wire the fetched lib into `go build` via `CGO_LDFLAGS`, incl. musl handling. |
 | `Dockerfile` | Fully static (musl) build for a `scratch`/distroless image. |
 

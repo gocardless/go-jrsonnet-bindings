@@ -1,6 +1,6 @@
 # go-jrsonnet-bindings
 
-Go bindings for [jrsonnet](https://github.com/CertainLach/jrsonnet), a Rust implementation of the [Jsonnet](https://jsonnet.org/) data templating language.
+Go bindings for [jrsonnet](https://github.com/deltarocks/jrsonnet), a Rust implementation of the [Jsonnet](https://jsonnet.org/) data templating language.
 
 ## Overview
 
@@ -299,9 +299,13 @@ Go (CGo)  ──>  C ABI  ──>  Rust staticlib  ──>  jrsonnet-evaluator
 
 Callbacks (import and native functions) flow in reverse: Rust calls a C function pointer, which bridges to a Go export function, which looks up the registered Go callback via `cgo.Handle`.
 
+## Contributing
+
+See [CONTRIBUTING.md](CONTRIBUTING.md). Everyone who takes part in this project must follow the [Code of Conduct](CODE_OF_CONDUCT.md).
+
 ## License
 
-MIT, the same as upstream [jrsonnet](https://github.com/CertainLach/jrsonnet). See [LICENSE](LICENSE).
+MIT, the same as upstream [jrsonnet](https://github.com/deltarocks/jrsonnet). See [LICENSE](LICENSE).
 
 The static library `libjrsonnet_go.a` bundles jrsonnet and other Rust crates under their own
 permissive licenses. CI generates their notices with [cargo-about](https://github.com/EmbarkStudios/cargo-about)
